@@ -1,26 +1,37 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   FlatList,
+  ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../../theme/colors';
-
-const MY_REVIEWS = [
-  { id: '1', salon: 'Serenity Salon', service: 'Hair Cut', rating: 5, comment: 'Amazing service! The stylist was very professional and my hair looks fantastic.', date: 'Apr 15, 2026' },
-  { id: '2', salon: 'Uptown Hair', service: 'Beard Trim', rating: 4, comment: 'Good experience overall. The place was clean and staff was friendly.', date: 'Mar 20, 2026' },
-  { id: '3', salon: 'Braids & Layers', service: 'Hair Color', rating: 5, comment: 'Best hair color experience ever! Will definitely come back.', date: 'Feb 10, 2026' },
-  { id: '4', salon: 'The Cleanup', service: 'Facials', rating: 3, comment: 'Decent service but the wait time was a bit long.', date: 'Jan 5, 2026' },
-];
+import { getMyReviews, Review } from '../../api/reviews';
 
 interface Props {
   navigation: any;
 }
 
 export default function MyReviewsScreen({ navigation }: Props) {
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const data = await getMyReviews();
+        setReviews(data);
+      } catch (err: any) {
+        Alert.alert('Error', err.message || 'Failed to load reviews');
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
   return (
     <SafeAreaView style={styles.root} edges={['top']}>
       <View style={styles.header}>
@@ -31,22 +42,31 @@ export default function MyReviewsScreen({ navigation }: Props) {
         <View style={{ width: 36 }} />
       </View>
 
+      {loading ? (
+        <ActivityIndicator style={{ marginTop: 40 }} color={Colors.primary} size="large" />
+      ) : (
       <FlatList
-        data={MY_REVIEWS}
-        keyExtractor={item => item.id}
+        data={reviews}
+        keyExtractor={item => item._id}
         contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
+        ListEmptyComponent={
+          <View style={{ alignItems: 'center', marginTop: 60 }}>
+            <Text style={{ fontSize: 48 }}>⭐</Text>
+            <Text style={{ fontSize: 16, color: Colors.textSecondary, marginTop: 12 }}>No reviews yet</Text>
+          </View>
+        }
         renderItem={({ item }) => (
           <View style={styles.card}>
             <View style={styles.cardHeader}>
               <View style={styles.salonAvatar}>
-                <Text style={styles.salonAvatarText}>{item.salon[0]}</Text>
+                <Text style={styles.salonAvatarText}>{(item.salonName || 'S')[0]}</Text>
               </View>
               <View style={styles.salonInfo}>
-                <Text style={styles.salonName}>{item.salon}</Text>
-                <Text style={styles.serviceName}>{item.service}</Text>
+                <Text style={styles.salonName}>{item.salonName || 'Salon'}</Text>
+                <Text style={styles.serviceName}>{item.serviceName || ''}</Text>
               </View>
-              <Text style={styles.date}>{item.date}</Text>
+              <Text style={styles.date}>{item.createdAt ? new Date(item.createdAt).toLocaleDateString() : ''}</Text>
             </View>
             <View style={styles.starsRow}>
               {Array.from({ length: 5 }).map((_, i) => (
@@ -57,17 +77,10 @@ export default function MyReviewsScreen({ navigation }: Props) {
               <Text style={styles.ratingNumber}>{item.rating}.0</Text>
             </View>
             <Text style={styles.comment}>{item.comment}</Text>
-            <View style={styles.cardActions}>
-              <TouchableOpacity style={styles.editBtn}>
-                <Text style={styles.editBtnText}>Edit</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.deleteBtn}>
-                <Text style={styles.deleteBtnText}>Delete</Text>
-              </TouchableOpacity>
-            </View>
           </View>
         )}
       />
+      )}
     </SafeAreaView>
   );
 }

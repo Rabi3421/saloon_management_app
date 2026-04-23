@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -8,52 +8,53 @@ import {
   FlatList,
   KeyboardAvoidingView,
   Platform,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../../theme/colors';
+import { getConversationThread, sendMessage, ChatMessage } from '../../api/messages';
 
 interface Props {
   navigation: any;
   route: any;
 }
 
-const INITIAL_MESSAGES = [
-  { id: '1', text: 'Hello! How can I help you today?', from: 'salon', time: '9:00 AM' },
-  { id: '2', text: "Hi! I'd like to book an appointment for a haircut.", from: 'user', time: '9:01 AM' },
-  { id: '3', text: 'Sure! We have slots available tomorrow. What time works for you?', from: 'salon', time: '9:02 AM' },
-  { id: '4', text: 'How about 10 AM?', from: 'user', time: '9:03 AM' },
-  { id: '5', text: "Perfect! 10 AM tomorrow is confirmed. See you then! 😊", from: 'salon', time: '9:04 AM' },
-  { id: '6', text: 'Great, thank you!', from: 'user', time: '9:05 AM' },
-  { id: '7', text: "Your appointment is confirmed!\n📅 Tomorrow, 10:00 AM\n✂️ Hair Cut - Short\n💰 $30", from: 'salon', time: '9:06 AM' },
-];
-
 export default function ChatScreen({ navigation, route }: Props) {
-  const salonName = route?.params?.name || 'Serenity Salon';
-  const [messages, setMessages] = useState(INITIAL_MESSAGES);
+  const salonName: string = route?.params?.name || 'Salon';
+  const conversationId: string = route?.params?.conversationId || '';
+  const salonId: string = route?.params?.salonId || '';
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
+  const flatListRef = useRef<FlatList>(null);
 
-  const send = () => {
+  useEffect(() => {
+    if (!conversationId) return;
+    (async () => {
+      try {
+        const thread = await getConversationThread(conversationId);
+        setMessages(thread);
+      } catch (err: any) {
+        Alert.alert('Error', err.message || 'Failed to load messages');
+      }
+    })();
+  }, [conversationId]);
+
+  const send = async () => {
     if (!input.trim()) return;
-    const newMsg = {
-      id: String(Date.now()),
-      text: input.trim(),
-      from: 'user',
-      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-    };
-    setMessages(prev => [...prev, newMsg]);
+    const text = input.trim();
     setInput('');
-    // Simulate reply
-    setTimeout(() => {
-      setMessages(prev => [
-        ...prev,
-        {
-          id: String(Date.now() + 1),
-          text: 'Thanks for your message! We will get back to you shortly. 😊',
-          from: 'salon',
-          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        },
-      ]);
-    }, 1000);
+    const optimistic: ChatMessage = {
+      _id: String(Date.now()),
+      text,
+      from: 'user',
+      createdAt: new Date().toISOString(),
+    };
+    setMessages(prev => [...prev, optimistic]);
+    try {
+      await sendMessage({ salonId, text });
+    } catch (err: any) {
+      Alert.alert('Error', err.message || 'Failed to send message');
+    }
   };
 
   return (
@@ -80,7 +81,7 @@ export default function ChatScreen({ navigation, route }: Props) {
       {/* Messages */}
       <FlatList
         data={messages}
-        keyExtractor={item => item.id}
+        keyExtractor={item => item._id}
         contentContainerStyle={styles.messagesList}
         showsVerticalScrollIndicator={false}
         renderItem={({ item }) => {
@@ -97,7 +98,7 @@ export default function ChatScreen({ navigation, route }: Props) {
                   {item.text}
                 </Text>
                 <Text style={[styles.bubbleTime, isUser && styles.bubbleTimeUser]}>
-                  {item.time}
+                  {item.createdAt ? new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
                 </Text>
               </View>
             </View>

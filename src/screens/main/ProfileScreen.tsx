@@ -5,9 +5,11 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../../theme/colors';
+import { useAuth } from '../../context/AuthContext';
 
 const MENU_ITEMS = [
   { icon: '✏️', label: 'Edit Profile' },
@@ -24,6 +26,19 @@ const MENU_ITEMS = [
 ];
 
 export default function ProfileScreen({ navigation }: { navigation: any }) {
+  const { user, logout } = useAuth();
+  const displayName = user?.name || 'Guest';
+  const displayEmail = user?.email || '';
+  const displayPhone = user?.phone || '';
+  const initials = displayName.substring(0, 2).toUpperCase();
+
+  const handleLogout = () => {
+    Alert.alert('Log Out', 'Are you sure you want to log out?', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Log Out', style: 'destructive', onPress: () => logout() },
+    ]);
+  };
+
   return (
     <SafeAreaView style={styles.root}>
       <ScrollView>
@@ -34,12 +49,12 @@ export default function ProfileScreen({ navigation }: { navigation: any }) {
         {/* User card */}
         <View style={styles.userCard}>
           <View style={styles.avatar}>
-            <Text style={styles.avatarText}>IR</Text>
+            <Text style={styles.avatarText}>{initials}</Text>
           </View>
           <View style={styles.userInfo}>
-            <Text style={styles.userName}>Ibne Riead</Text>
-            <Text style={styles.userEmail}>ibne.riead@email.com</Text>
-            <Text style={styles.userPhone}>+1 (555) 234-5678</Text>
+            <Text style={styles.userName}>{displayName}</Text>
+            <Text style={styles.userEmail}>{displayEmail}</Text>
+            <Text style={styles.userPhone}>{displayPhone}</Text>
           </View>
           <TouchableOpacity style={styles.editBtn} onPress={() => navigation.navigate('EditProfile')}>
             <Text style={styles.editBtnText}>Edit</Text>
@@ -67,7 +82,7 @@ export default function ProfileScreen({ navigation }: { navigation: any }) {
               key={i}
               style={[styles.menuItem, i === MENU_ITEMS.length - 1 && { borderBottomWidth: 0 }]}
               onPress={() => {
-                if (item.label === 'Log Out') { navigation.navigate('Login'); }
+                if (item.label === 'Log Out') { handleLogout(); }
                 else if (item.label === 'Edit Profile') { navigation.navigate('EditProfile'); }
                 else if (item.label === 'Payment Methods') { navigation.navigate('PaymentMethods'); }
                 else if (item.label === 'My Reviews') { navigation.navigate('MyReviews'); }

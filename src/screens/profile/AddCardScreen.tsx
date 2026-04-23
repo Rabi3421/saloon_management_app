@@ -8,24 +8,38 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../../theme/colors';
+import { addPaymentMethod } from '../../api/paymentMethods';
 
 interface Props {
   navigation: any;
   route: any;
 }
 
+const detectBrand = (number: string): string => {
+  const stripped = number.replace(/\s/g, '');
+  if (stripped.startsWith('4')) return 'visa';
+  if (stripped.startsWith('5') || stripped.startsWith('2')) return 'mastercard';
+  if (stripped.startsWith('3')) return 'amex';
+  return 'other';
+};
+
 export default function AddCardScreen({ navigation, route }: Props) {
   const existing = route?.params?.card;
   const isEdit = !!existing;
 
-  const [cardNumber, setCardNumber] = useState(existing?.number?.replace(/\*/g, '4') || '');
-  const [cardName, setCardName] = useState(existing?.name || '');
-  const [expiry, setExpiry] = useState(existing?.expiry || '');
+  const [cardNumber, setCardNumber] = useState('');
+  const [cardName, setCardName] = useState(existing?.cardholderName || '');
+  const [expiry, setExpiry] = useState(
+    existing ? `${String(existing.expiryMonth).padStart(2,'0')}/${String(existing.expiryYear).slice(-2)}` : ''
+  );
   const [cvv, setCvv] = useState('');
   const [isDefault, setIsDefault] = useState(existing?.isDefault || false);
+  const [loading, setLoading] = useState(false);
 
   const formatCard = (val: string) => {
     const digits = val.replace(/\D/g, '').slice(0, 16);
@@ -36,6 +50,39 @@ export default function AddCardScreen({ navigation, route }: Props) {
     const digits = val.replace(/\D/g, '').slice(0, 4);
     if (digits.length > 2) return `${digits.slice(0, 2)}/${digits.slice(2)}`;
     return digits;
+  };
+
+  const handleSave = async () => {
+    const stripped = cardNumber.replace(/\s/g, '');
+    if (!isEdit && stripped.length < 16) {
+      Alert.alert('Error', 'Please enter a valid 16-digit card number');
+      return;
+    }
+    if (!cardName.trim()) {
+      Alert.alert('Error', 'Please enter the cardholder name');
+      return;
+    }
+    const expiryParts = expiry.split('/');
+    if (expiryParts.length !== 2 || expiryParts[0].length !== 2 || expiryParts[1].length !== 2) {
+      Alert.alert('Error', 'Please enter a valid expiry date (MM/YY)');
+      return;
+    }
+    setLoading(true);
+    try {
+      await addPaymentMethod({
+        cardholderName: cardName.trim(),
+        last4: stripped.slice(-4) || existing?.last4,
+        brand: detectBrand(stripped) || existing?.brand,
+        expiryMonth: parseInt(expiryParts[0], 10),
+        expiryYear: parseInt(`20${expiryParts[1]}`, 10),
+        isDefault,
+      });
+      navigation.goBack();
+    } catch (err: any) {
+      Alert.alert('Error', err.message || 'Failed to save card');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -134,9 +181,14 @@ export default function AddCardScreen({ navigation, route }: Props) {
           </View>
 
           <TouchableOpacity
-            style={styles.saveBtn}
-            onPress={() => navigation.goBack()}>
-            <Text style={styles.saveBtnText}>{isEdit ? 'Update Card' : 'Add Card'}</Text>
+            style={[styles.saveBtn, loading && { opacity: 0.6 }]}
+            onPress={handleSave}
+            disabled={loading}>
+            {loading ? (
+              <ActivityIndicator color={Colors.white} />
+            ) : (
+              <Text style={styles.saveBtnText}>{isEdit ? 'Update Card' : 'Add Card'}</Text>
+            )}
           </TouchableOpacity>
           <View style={{ height: 30 }} />
         </ScrollView>

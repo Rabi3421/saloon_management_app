@@ -8,8 +8,11 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { Colors } from '../../theme/colors';
+import { useAuth } from '../../context/AuthContext';
 
 interface Props {
   navigation: any;
@@ -24,6 +27,32 @@ export default function SignUpScreen({ navigation }: Props) {
   const [showPass, setShowPass] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [agreed, setAgreed] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const { register } = useAuth();
+
+  const handleSignUp = async () => {
+    if (!name.trim() || !email.trim() || !phone.trim() || !password) {
+      Alert.alert('Validation', 'Please fill in all fields.');
+      return;
+    }
+    if (password !== confirm) {
+      Alert.alert('Validation', 'Passwords do not match.');
+      return;
+    }
+    if (!agreed) {
+      Alert.alert('Validation', 'Please accept the Terms & Conditions.');
+      return;
+    }
+    setLoading(true);
+    try {
+      await register({ name: name.trim(), email: email.trim(), phone: phone.trim(), password });
+      // Navigation handled automatically by RootNavigator
+    } catch (err: any) {
+      Alert.alert('Sign Up Failed', err.message || 'Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <KeyboardAvoidingView
@@ -94,9 +123,14 @@ export default function SignUpScreen({ navigation }: Props) {
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={styles.signUpBtn}
-            onPress={() => navigation.navigate('EnableLocation')}>
-            <Text style={styles.signUpBtnText}>Sign Up</Text>
+            style={[styles.signUpBtn, loading && { opacity: 0.7 }]}
+            onPress={handleSignUp}
+            disabled={loading}>
+            {loading ? (
+              <ActivityIndicator color={Colors.white} />
+            ) : (
+              <Text style={styles.signUpBtnText}>Sign Up</Text>
+            )}
           </TouchableOpacity>
 
           <View style={styles.orRow}>

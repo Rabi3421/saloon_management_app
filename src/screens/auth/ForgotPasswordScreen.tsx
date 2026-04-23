@@ -8,24 +8,32 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { Colors } from '../../theme/colors';
+import { forgotPassword, verifyOtp } from '../../api/passwordReset';
 
 interface Props {
   navigation: any;
+  route: any;
 }
 
-export default function ForgotPasswordScreen({ navigation }: Props) {
+export default function ForgotPasswordScreen({ navigation, route }: Props) {
+  const [step, setStep] = useState<'email' | 'otp'>('email');
+  const [email, setEmail] = useState(route?.params?.email || '');
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [timer, setTimer] = useState(56);
+  const [loading, setLoading] = useState(false);
   const inputs = useRef<(TextInput | null)[]>([]);
 
   useEffect(() => {
+    if (step !== 'otp') return;
     const interval = setInterval(() => {
       setTimer(t => (t > 0 ? t - 1 : 0));
     }, 1000);
     return () => clearInterval(interval);
-  }, []);
+  }, [step]);
 
   const handleChange = (val: string, index: number) => {
     const newOtp = [...otp];
@@ -44,6 +52,53 @@ export default function ForgotPasswordScreen({ navigation }: Props) {
 
   const pad = (n: number) => String(n).padStart(2, '0');
 
+  const handleSendCode = async () => {
+    if (!email.trim()) {
+      Alert.alert('Error', 'Please enter your email address');
+      return;
+    }
+    setLoading(true);
+    try {
+      await forgotPassword(email.trim());
+      setStep('otp');
+      setTimer(56);
+    } catch (err: any) {
+      Alert.alert('Error', err.message || 'Failed to send OTP');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResend = async () => {
+    setLoading(true);
+    try {
+      await forgotPassword(email.trim());
+      setTimer(56);
+      setOtp(['', '', '', '', '', '']);
+    } catch (err: any) {
+      Alert.alert('Error', err.message || 'Failed to resend OTP');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVerify = async () => {
+    const otpCode = otp.join('');
+    if (otpCode.length < 6) {
+      Alert.alert('Error', 'Please enter the 6-digit OTP');
+      return;
+    }
+    setLoading(true);
+    try {
+      const resetToken = await verifyOtp(email.trim(), otpCode);
+      navigation.navigate('CreateNewPassword', { resetToken, email: email.trim() });
+    } catch (err: any) {
+      Alert.alert('Error', err.message || 'Invalid or expired OTP');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <KeyboardAvoidingView
       style={styles.root}
@@ -61,45 +116,79 @@ export default function ForgotPasswordScreen({ navigation }: Props) {
         {/* Purple banner */}
         <View style={styles.banner}>
           <Text style={styles.bannerText}>
-            Please check your email to take 6 digit{'\n'}code for continue
+            {step === 'email'
+              ? `Enter your email address to\nreceive a 6-digit OTP code`
+              : `Please check your email to take 6 digit\ncode for continue`}
           </Text>
         </View>
 
         {/* Card */}
         <View style={styles.card}>
-          {/* OTP inputs */}
-          <View style={styles.otpRow}>
-            {otp.map((digit, i) => (
+          {step === 'email' ? (
+            <>
+              <Text style={styles.inputLabel}>Email Address</Text>
               <TextInput
-                key={i}
-                ref={ref => { inputs.current[i] = ref; }}
-                style={[styles.otpInput, digit ? styles.otpInputFilled : null]}
-                value={digit}
-                onChangeText={val => handleChange(val.slice(-1), i)}
-                onKeyPress={e => handleKeyPress(e, i)}
-                keyboardType="numeric"
-                maxLength={1}
-                textAlign="center"
+                style={styles.emailInput}
+                placeholder="Enter your email"
+                placeholderTextColor={Colors.grey}
+                value={email}
+                onChangeText={setEmail}
+                keyboardType="email-address"
+                autoCapitalize="none"
               />
-            ))}
-          </View>
+              <TouchableOpacity
+                style={[styles.sendBtn, loading && styles.sendBtnDisabled]}
+                onPress={handleSendCode}
+                disabled={loading}>
+                {loading ? (
+                  <ActivityIndicator color={Colors.white} />
+                ) : (
+                  <Text style={styles.sendBtnText}>Send Code</Text>
+                )}
+              </TouchableOpacity>
+            </>
+          ) : (
+            <>
+              <View style={styles.otpRow}>
+                {otp.map((digit, i) => (
+                  <TextInput
+                    key={i}
+                    ref={ref => { inputs.current[i] = ref; }}
+                    style={[styles.otpInput, digit ? styles.otpInputFilled : null]}
+                    value={digit}
+                    onChangeText={val => handleChange(val.slice(-1), i)}
+                    onKeyPress={e => handleKeyPress(e, i)}
+                    keyboardType="numeric"
+                    maxLength={1}
+                    textAlign="center"
+                  />
+                ))}
+              </View>
 
-          {/* Timer */}
-          <Text style={styles.timerText}>
-            {pad(Math.floor(timer / 60))}:{pad(timer % 60)}
-          </Text>
-          <View style={styles.resendRow}>
-            <Text style={styles.resendGrey}>Didn't receive code? </Text>
-            <TouchableOpacity onPress={() => setTimer(60)}>
-              <Text style={styles.resendLink}>Resend Code</Text>
-            </TouchableOpacity>
-          </View>
+              <Text style={styles.timerText}>
+                {pad(Math.floor(timer / 60))}:{pad(timer % 60)}
+              </Text>
+              <View style={styles.resendRow}>
+                <Text style={styles.resendGrey}>Didn't receive code? </Text>
+                <TouchableOpacity onPress={handleResend} disabled={loading || timer > 0}>
+                  <Text style={[styles.resendLink, (loading || timer > 0) && { opacity: 0.4 }]}>
+                    Resend Code
+                  </Text>
+                </TouchableOpacity>
+              </View>
 
-          <TouchableOpacity
-            style={styles.sendBtn}
-            onPress={() => navigation.navigate('CreateNewPassword')}>
-            <Text style={styles.sendBtnText}>Send</Text>
-          </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.sendBtn, loading && styles.sendBtnDisabled]}
+                onPress={handleVerify}
+                disabled={loading}>
+                {loading ? (
+                  <ActivityIndicator color={Colors.white} />
+                ) : (
+                  <Text style={styles.sendBtnText}>Verify</Text>
+                )}
+              </TouchableOpacity>
+            </>
+          )}
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -188,4 +277,17 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   sendBtnText: { color: Colors.white, fontSize: 16, fontWeight: '700' },
+  sendBtnDisabled: { opacity: 0.6 },
+  inputLabel: { alignSelf: 'flex-start', fontSize: 14, fontWeight: '600', color: Colors.text, marginBottom: 8 },
+  emailInput: {
+    width: '100%',
+    borderWidth: 1.5,
+    borderColor: Colors.greyBorder,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 14,
+    color: Colors.text,
+    marginBottom: 24,
+  },
 });

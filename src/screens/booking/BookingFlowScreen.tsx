@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,10 +7,13 @@ import {
   ScrollView,
   Dimensions,
   FlatList,
+  ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../../theme/colors';
-import { SALON_STAFF } from '../../data/mockData';
+import { getPublicStaff, StaffMember } from '../../api/staff';
+import { createBooking } from '../../api/bookings';
 
 const { width } = Dimensions.get('window');
 
@@ -39,13 +42,30 @@ interface Props {
 }
 
 export default function BookingFlowScreen({ navigation, route }: Props) {
-  const { salon } = route.params || {};
+  const { salon, serviceId } = route.params || {};
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth());
   const [selectedDay, setSelectedDay] = useState(now.getDate());
   const [selectedTime, setSelectedTime] = useState('10:00 AM');
-  const [selectedStaff, setSelectedStaff] = useState(SALON_STAFF[0].id);
+  const [selectedStaff, setSelectedStaff] = useState<string>('');
+  const [staffList, setStaffList] = useState<StaffMember[]>([]);
+  const [loadingStaff, setLoadingStaff] = useState(true);
+  const [bookingLoading, setBookingLoading] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const data = await getPublicStaff();
+        setStaffList(data);
+        if (data.length > 0) setSelectedStaff(data[0]._id);
+      } catch {
+        // fall back to empty list silently
+      } finally {
+        setLoadingStaff(false);
+      }
+    })();
+  }, []);
 
   const daysInMonth = getDaysInMonth(year, month);
   const firstDay = getFirstDay(year, month);
@@ -65,13 +85,28 @@ export default function BookingFlowScreen({ navigation, route }: Props) {
     else setMonth(m => m + 1);
   };
 
-  const handleContinue = () => {
-    navigation.navigate('OrderSummary', {
-      salon,
-      date: `${MONTHS[month]} ${selectedDay}, ${year}`,
-      time: selectedTime,
-      staffId: selectedStaff,
-    });
+  const handleContinue = async () => {
+    const bookingDate = `${year}-${String(month + 1).padStart(2, '0')}-${String(selectedDay).padStart(2, '0')}`;
+    setBookingLoading(true);
+    try {
+      const booking = await createBooking({
+        serviceId: serviceId || '',
+        staffId: selectedStaff || undefined,
+        bookingDate,
+        timeSlot: selectedTime,
+      });
+      navigation.navigate('OrderSummary', {
+        salon,
+        date: `${MONTHS[month]} ${selectedDay}, ${year}`,
+        time: selectedTime,
+        staffId: selectedStaff,
+        bookingId: booking._id,
+      });
+    } catch (err: any) {
+      Alert.alert('Booking Failed', err.message || 'Please try again.');
+    } finally {
+      setBookingLoading(false);
+    }
   };
 
   return (
@@ -149,34 +184,46 @@ export default function BookingFlowScreen({ navigation, route }: Props) {
 
         {/* Staff selection */}
         <Text style={styles.sectionTitle}>Select Staff</Text>
-        <View style={styles.staffList}>
-          {SALON_STAFF.map(staff => (
-            <TouchableOpacity
-              key={staff.id}
-              style={[styles.staffCard, selectedStaff === staff.id && styles.staffCardSelected]}
-              onPress={() => setSelectedStaff(staff.id)}>
-              <View style={styles.staffAvatar}>
-                <Text style={styles.staffAvatarText}>{staff.avatar}</Text>
-              </View>
-              <View style={styles.staffInfo}>
-                <Text style={styles.staffName}>{staff.name}</Text>
-                <Text style={styles.staffRole}>{staff.role}</Text>
-              </View>
-              <Text style={styles.staffRating}>⭐ {staff.rating}</Text>
-              {selectedStaff === staff.id && (
-                <View style={styles.staffCheck}>
-                  <Text style={styles.staffCheckText}>✓</Text>
+        {loadingStaff ? (
+          <ActivityIndicator color={Colors.primary} style={{ marginBottom: 16 }} />
+        ) : (
+          <View style={styles.staffList}>
+            {staffList.map((staff: StaffMember) => (
+              <TouchableOpacity
+                key={staff._id}
+                style={[styles.staffCard, selectedStaff === staff._id && styles.staffCardSelected]}
+                onPress={() => setSelectedStaff(staff._id)}>
+                <View style={styles.staffAvatar}>
+                  <Text style={styles.staffAvatarText}>
+                    {staff.name.substring(0, 2).toUpperCase()}
+                  </Text>
                 </View>
-              )}
-            </TouchableOpacity>
-          ))}
-        </View>
+                <View style={styles.staffInfo}>
+                  <Text style={styles.staffName}>{staff.name}</Text>
+                  <Text style={styles.staffRole}>{staff.specialization}</Text>
+                </View>
+                {selectedStaff === staff._id && (
+                  <View style={styles.staffCheck}>
+                    <Text style={styles.staffCheckText}>✓</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            ))}
+            {staffList.length === 0 && (
+              <Text style={{ color: Colors.textSecondary, fontSize: 13 }}>No staff available.</Text>
+            )}
+          </View>
+        )}
         <View style={{ height: 100 }} />
       </ScrollView>
 
       <View style={styles.footer}>
-        <TouchableOpacity style={styles.continueBtn} onPress={handleContinue}>
-          <Text style={styles.continueBtnText}>Continue</Text>
+        <TouchableOpacity style={[styles.continueBtn, bookingLoading && { opacity: 0.7 }]} onPress={handleContinue} disabled={bookingLoading}>
+          {bookingLoading ? (
+            <ActivityIndicator color={Colors.white} />
+          ) : (
+            <Text style={styles.continueBtnText}>Continue</Text>
+          )}
         </TouchableOpacity>
       </View>
     </SafeAreaView>

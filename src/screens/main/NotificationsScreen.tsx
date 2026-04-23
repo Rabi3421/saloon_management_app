@@ -1,23 +1,21 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   FlatList,
+  ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../../theme/colors';
-
-const NOTIFICATIONS = [
-  { id: '1', type: 'booking', title: 'Booking Confirmed', body: 'Your appointment at Serenity Salon is confirmed for tomorrow at 10:00 AM.', time: '2 min ago', read: false },
-  { id: '2', type: 'promo', title: '30% Off This Weekend!', body: 'Get 30% off all hair services at Uptown Hair this weekend only.', time: '1 hr ago', read: false },
-  { id: '3', type: 'reminder', title: 'Appointment Reminder', body: "Don't forget! You have an appointment at Braids & Layers tomorrow at 2:00 PM.", time: '3 hr ago', read: true },
-  { id: '4', type: 'booking', title: 'Appointment Cancelled', body: 'Your appointment at The Cleanup on Apr 15 has been cancelled.', time: 'Yesterday', read: true },
-  { id: '5', type: 'promo', title: 'New Salon Near You!', body: 'Classique Curls just opened near you. Check out their services!', time: '2 days ago', read: true },
-  { id: '6', type: 'review', title: 'Leave a Review', body: 'How was your experience at Serenity Salon? Leave a review and help others!', time: '3 days ago', read: true },
-  { id: '7', type: 'booking', title: 'Booking Completed', body: 'Your appointment at Curls & More has been completed. We hope you enjoyed!', time: '1 week ago', read: true },
-];
+import {
+  getNotifications,
+  markNotificationRead,
+  markAllNotificationsRead,
+  AppNotification,
+} from '../../api/notifications';
 
 const TYPE_ICONS: Record<string, string> = {
   booking: '📅',
@@ -38,10 +36,38 @@ interface Props {
 }
 
 export default function NotificationsScreen({ navigation }: Props) {
-  const [notifications, setNotifications] = useState(NOTIFICATIONS);
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const markAllRead = () => {
-    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+  useEffect(() => {
+    (async () => {
+      try {
+        const data = await getNotifications();
+        setNotifications(data);
+      } catch (err: any) {
+        Alert.alert('Error', err.message || 'Failed to load notifications');
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  const markAllRead = async () => {
+    try {
+      await markAllNotificationsRead();
+      setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+    } catch (err: any) {
+      Alert.alert('Error', err.message || 'Failed to mark all read');
+    }
+  };
+
+  const handlePress = async (item: AppNotification) => {
+    if (!item.read) {
+      try {
+        await markNotificationRead(item._id);
+        setNotifications(prev => prev.map(n => n._id === item._id ? { ...n, read: true } : n));
+      } catch {}
+    }
   };
 
   const unreadCount = notifications.filter(n => !n.read).length;
@@ -64,15 +90,13 @@ export default function NotificationsScreen({ navigation }: Props) {
 
       <FlatList
         data={notifications}
-        keyExtractor={item => item.id}
+        keyExtractor={item => item._id}
         contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
         renderItem={({ item }) => (
           <TouchableOpacity
             style={[styles.notifCard, !item.read && styles.notifCardUnread]}
-            onPress={() => setNotifications(prev =>
-              prev.map(n => n.id === item.id ? { ...n, read: true } : n)
-            )}>
+            onPress={() => handlePress(item)}>
             <View style={[styles.iconCircle, { backgroundColor: TYPE_COLORS[item.type] + '20' }]}>
               <Text style={styles.iconEmoji}>{TYPE_ICONS[item.type]}</Text>
             </View>
@@ -81,7 +105,7 @@ export default function NotificationsScreen({ navigation }: Props) {
                 <Text style={[styles.notifTitle, !item.read && styles.notifTitleBold]}>
                   {item.title}
                 </Text>
-                <Text style={styles.notifTime}>{item.time}</Text>
+                <Text style={styles.notifTime}>{item.createdAt ? new Date(item.createdAt).toLocaleDateString() : ''}</Text>
               </View>
               <Text style={styles.notifBody} numberOfLines={2}>{item.body}</Text>
             </View>

@@ -1,24 +1,80 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../../theme/colors';
-
-const BOOKINGS = [
-  { id: '1', salon: 'Serenity Salon', service: 'Hair Cut - Short', date: 'Mon, Apr 28, 2026', time: '10:00 AM', status: 'Upcoming', price: '$30' },
-  { id: '2', salon: 'Uptown Hair', service: 'Beard Trim', date: 'Sat, Apr 19, 2026', time: '2:00 PM', status: 'Completed', price: '$20' },
-  { id: '3', salon: 'Curls & More', service: 'Hair Color - Highlights', date: 'Fri, Apr 11, 2026', time: '11:00 AM', status: 'Cancelled', price: '$120' },
-];
+import { getBookings, updateBookingStatus, Booking } from '../../api/bookings';
 
 const STATUS_COLORS: Record<string, string> = {
-  Upcoming: Colors.primary,
-  Completed: Colors.green,
-  Cancelled: Colors.red,
+  pending: Colors.primary,
+  confirmed: Colors.primary,
+  completed: Colors.green,
+  cancelled: Colors.red,
 };
+
+const STATUS_LABELS: Record<string, string> = {
+  pending: 'Upcoming',
+  confirmed: 'Upcoming',
+  completed: 'Completed',
+  cancelled: 'Cancelled',
+};
+
+function getServiceName(b: Booking): string {
+  if (typeof b.serviceId === 'object') return b.serviceId.name;
+  return 'Service';
+}
+
+function getServicePrice(b: Booking): string {
+  if (typeof b.serviceId === 'object') return `₹${b.serviceId.price}`;
+  return '';
+}
+
+function getStaffName(b: Booking): string {
+  if (typeof b.staffId === 'object' && b.staffId) return b.staffId.name;
+  return '';
+}
 
 export default function BookingScreen() {
   const [activeTab, setActiveTab] = useState('All');
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [loading, setLoading] = useState(true);
   const tabs = ['All', 'Upcoming', 'Completed', 'Cancelled'];
-  const filtered = activeTab === 'All' ? BOOKINGS : BOOKINGS.filter(b => b.status === activeTab);
+
+  const fetchBookings = useCallback(async () => {
+    try {
+      const data = await getBookings();
+      setBookings(data);
+    } catch (err: any) {
+      Alert.alert('Error', err.message);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchBookings(); }, [fetchBookings]);
+
+  const handleCancel = async (id: string) => {
+    Alert.alert('Cancel Booking', 'Are you sure you want to cancel?', [
+      { text: 'No', style: 'cancel' },
+      {
+        text: 'Yes, Cancel',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await updateBookingStatus(id, 'cancelled');
+            fetchBookings();
+          } catch (err: any) {
+            Alert.alert('Error', err.message);
+          }
+        },
+      },
+    ]);
+  };
+
+  const filtered = bookings.filter(b => {
+    if (activeTab === 'All') return true;
+    const label = STATUS_LABELS[b.status] || b.status;
+    return label === activeTab;
+  });
 
   return (
     <SafeAreaView style={styles.root}>
@@ -35,39 +91,48 @@ export default function BookingScreen() {
           </TouchableOpacity>
         ))}
       </View>
-      <FlatList
-        data={filtered}
-        keyExtractor={item => item.id}
-        contentContainerStyle={styles.list}
-        renderItem={({ item }) => (
-          <View style={styles.card}>
-            <View style={styles.cardTop}>
-              <View style={styles.cardEmoji}><Text style={{ fontSize: 28 }}>💇</Text></View>
-              <View style={styles.cardInfo}>
-                <Text style={styles.cardSalon}>{item.salon}</Text>
-                <Text style={styles.cardService}>{item.service}</Text>
-                <Text style={styles.cardDateTime}>📅 {item.date} · ⏰ {item.time}</Text>
+      {loading ? (
+        <ActivityIndicator size="large" color={Colors.primary} style={{ marginTop: 40 }} />
+      ) : (
+        <FlatList
+          data={filtered}
+          keyExtractor={item => item._id}
+          contentContainerStyle={styles.list}
+          ListEmptyComponent={<Text style={styles.emptyText}>No bookings found.</Text>}
+          renderItem={({ item }) => {
+            const statusLabel = STATUS_LABELS[item.status] || item.status;
+            const statusColor = STATUS_COLORS[item.status] || Colors.textSecondary;
+            return (
+              <View style={styles.card}>
+                <View style={styles.cardTop}>
+                  <View style={styles.cardEmoji}><Text style={{ fontSize: 28 }}>💇</Text></View>
+                  <View style={styles.cardInfo}>
+                    <Text style={styles.cardSalon}>{item.salonName || getStaffName(item) || 'Salon'}</Text>
+                    <Text style={styles.cardService}>{getServiceName(item)}</Text>
+                    <Text style={styles.cardDateTime}>📅 {item.bookingDate} · ⏰ {item.timeSlot}</Text>
+                  </View>
+                  <View style={[styles.statusBadge, { backgroundColor: statusColor + '20' }]}>
+                    <Text style={[styles.statusText, { color: statusColor }]}>{statusLabel}</Text>
+                  </View>
+                </View>
+                <View style={styles.cardBottom}>
+                  <Text style={styles.price}>{getServicePrice(item)}</Text>
+                  {(item.status === 'pending' || item.status === 'confirmed') && (
+                    <TouchableOpacity style={styles.cancelBtn} onPress={() => handleCancel(item._id)}>
+                      <Text style={styles.cancelText}>Cancel</Text>
+                    </TouchableOpacity>
+                  )}
+                  {item.status === 'completed' && (
+                    <TouchableOpacity style={styles.rebookBtn}>
+                      <Text style={styles.rebookText}>Rebook</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
               </View>
-              <View style={[styles.statusBadge, { backgroundColor: STATUS_COLORS[item.status] + '20' }]}>
-                <Text style={[styles.statusText, { color: STATUS_COLORS[item.status] }]}>{item.status}</Text>
-              </View>
-            </View>
-            <View style={styles.cardBottom}>
-              <Text style={styles.price}>{item.price}</Text>
-              {item.status === 'Upcoming' && (
-                <TouchableOpacity style={styles.cancelBtn}>
-                  <Text style={styles.cancelText}>Cancel</Text>
-                </TouchableOpacity>
-              )}
-              {item.status === 'Completed' && (
-                <TouchableOpacity style={styles.rebookBtn}>
-                  <Text style={styles.rebookText}>Rebook</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-          </View>
-        )}
-      />
+            );
+          }}
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -133,4 +198,5 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
   },
   rebookText: { color: Colors.white, fontSize: 12, fontWeight: '700' },
+  emptyText: { textAlign: 'center', color: Colors.textSecondary, marginTop: 40, fontSize: 14 },
 });

@@ -1,9 +1,17 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Colors } from '../theme/colors';
+import { AuthProvider, useAuth } from '../context/AuthContext';
+
+// Owner screens
+import OwnerDashboardScreen from '../screens/owner/OwnerDashboardScreen';
+import OwnerBookingsScreen from '../screens/owner/OwnerBookingsScreen';
+import OwnerStaffScreen from '../screens/owner/OwnerStaffScreen';
+import OwnerServicesScreen from '../screens/owner/OwnerServicesScreen';
+import OwnerProfileScreen from '../screens/owner/OwnerProfileScreen';
 
 // Onboarding / Auth
 import OnboardingScreen from '../screens/onboarding/OnboardingScreen';
@@ -143,19 +151,123 @@ function ProfileScreenWithNav({ navigation }: any) {
   return <ProfileScreen navigation={navigation} />;
 }
 
+// ─── Owner Navigator ─────────────────────────────────────────────────────────
+
+const OwnerStack = createNativeStackNavigator();
+const OwnerTab = createBottomTabNavigator();
+
+function OwnerTabs() {
+  return (
+    <OwnerTab.Navigator
+      screenOptions={{
+        headerShown: false,
+        tabBarStyle: styles.tabBar,
+        tabBarShowLabel: false,
+      }}>
+      <OwnerTab.Screen
+        name="OwnerDashboardTab"
+        component={OwnerDashboardScreen}
+        options={{
+          tabBarIcon: ({ focused }) => (
+            <TabIcon label="Dashboard" emoji="🏠" focused={focused} />
+          ),
+        }}
+      />
+      <OwnerTab.Screen
+        name="OwnerBookingsTab"
+        component={OwnerBookingsScreen}
+        options={{
+          tabBarIcon: ({ focused }) => (
+            <TabIcon label="Bookings" emoji="📋" focused={focused} />
+          ),
+        }}
+      />
+      <OwnerTab.Screen
+        name="OwnerStaffTab"
+        component={OwnerStaffScreen}
+        options={{
+          tabBarIcon: ({ focused }) => (
+            <TabIcon label="Staff" emoji="👥" focused={focused} />
+          ),
+        }}
+      />
+      <OwnerTab.Screen
+        name="OwnerServicesTab"
+        component={OwnerServicesScreen}
+        options={{
+          tabBarIcon: ({ focused }) => (
+            <TabIcon label="Services" emoji="✂️" focused={focused} />
+          ),
+        }}
+      />
+      <OwnerTab.Screen
+        name="OwnerProfileTab"
+        component={OwnerProfileScreen}
+        options={{
+          tabBarIcon: ({ focused }) => (
+            <TabIcon label="Profile" emoji="👤" focused={focused} />
+          ),
+        }}
+      />
+    </OwnerTab.Navigator>
+  );
+}
+
+function OwnerApp() {
+  return (
+    <OwnerStack.Navigator screenOptions={{ headerShown: false }}>
+      <OwnerStack.Screen name="OwnerTabs" component={OwnerTabs} />
+      <OwnerStack.Screen name="OwnerMessages" component={MessageScreen} />
+      <OwnerStack.Screen name="OwnerNotifications" component={NotificationsScreen} />
+      <OwnerStack.Screen name="Chat" component={ChatScreen} />
+      <OwnerStack.Screen name="EditProfile" component={EditProfileScreen} />
+      <OwnerStack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} />
+      <OwnerStack.Screen name="HelpSupport" component={HelpSupportScreen} />
+      <OwnerStack.Screen name="AboutUs" component={AboutUsScreen} />
+    </OwnerStack.Navigator>
+  );
+}
+
 export default function AppNavigator() {
   return (
-    <NavigationContainer>
-      <Stack.Navigator screenOptions={{ headerShown: false }} initialRouteName="Onboarding">
-        <Stack.Screen name="Onboarding" component={OnboardingScreen} />
-        <Stack.Screen name="Login" component={LoginScreen} />
-        <Stack.Screen name="SignUp" component={SignUpScreen} />
-        <Stack.Screen name="EnableLocation" component={EnableLocationScreen} />
-        <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
-        <Stack.Screen name="CreateNewPassword" component={CreateNewPasswordScreen} />
+    <AuthProvider>
+      <NavigationContainer>
+        <RootNavigator />
+      </NavigationContainer>
+    </AuthProvider>
+  );
+}
+
+function RootNavigator() {
+  const { isLoading, isAuthenticated, user } = useAuth();
+
+  if (isLoading) {
+    return (
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.background }}>
+        <ActivityIndicator size="large" color={Colors.primary} />
+      </View>
+    );
+  }
+
+  const isOwner = user?.role === 'owner';
+
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }} initialRouteName={isAuthenticated ? 'MainApp' : 'Onboarding'}>
+      {!isAuthenticated ? (
+        <>
+          <Stack.Screen name="Onboarding" component={OnboardingScreen} />
+          <Stack.Screen name="Login" component={LoginScreen} />
+          <Stack.Screen name="SignUp" component={SignUpScreen} />
+          <Stack.Screen name="EnableLocation" component={EnableLocationScreen} />
+          <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
+          <Stack.Screen name="CreateNewPassword" component={CreateNewPasswordScreen} />
+        </>
+      ) : isOwner ? (
+        <Stack.Screen name="MainApp" component={OwnerApp} />
+      ) : (
         <Stack.Screen name="MainApp" component={MainTabs} />
-      </Stack.Navigator>
-    </NavigationContainer>
+      )}
+    </Stack.Navigator>
   );
 }
 

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,20 +8,55 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../../theme/colors';
+import { getMyProfile, updateMyProfile } from '../../api/user';
 
 interface Props {
   navigation: any;
 }
 
 export default function EditProfileScreen({ navigation }: Props) {
-  const [name, setName] = useState('Ibne Riead');
-  const [email, setEmail] = useState('ibne.riead@email.com');
-  const [phone, setPhone] = useState('+1 (555) 234-5678');
-  const [dob, setDob] = useState('Jan 15, 1995');
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
+  const [dob, setDob] = useState('');
   const [gender, setGender] = useState('Male');
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const profile = await getMyProfile();
+        setName(profile.name || '');
+        setEmail(profile.email || '');
+        setPhone(profile.phone || '');
+      } catch (err: any) {
+        Alert.alert('Error', err.message);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await updateMyProfile({ name: name.trim(), phone: phone.trim() });
+      Alert.alert('Success', 'Profile updated successfully.');
+      navigation.goBack();
+    } catch (err: any) {
+      Alert.alert('Error', err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const initials = name ? name.substring(0, 2).toUpperCase() : '??';
 
   return (
     <KeyboardAvoidingView
@@ -39,12 +74,18 @@ export default function EditProfileScreen({ navigation }: Props) {
         <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
           {/* Avatar */}
           <View style={styles.avatarSection}>
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>IR</Text>
-            </View>
-            <TouchableOpacity style={styles.editAvatarBtn}>
-              <Text style={styles.editAvatarIcon}>📷</Text>
-            </TouchableOpacity>
+            {loading ? (
+              <ActivityIndicator size="large" color={Colors.primary} />
+            ) : (
+              <>
+                <View style={styles.avatar}>
+                  <Text style={styles.avatarText}>{initials}</Text>
+                </View>
+                <TouchableOpacity style={styles.editAvatarBtn}>
+                  <Text style={styles.editAvatarIcon}>📷</Text>
+                </TouchableOpacity>
+              </>
+            )}
           </View>
 
           <View style={styles.card}>
@@ -69,9 +110,14 @@ export default function EditProfileScreen({ navigation }: Props) {
           </View>
 
           <TouchableOpacity
-            style={styles.saveBtn}
-            onPress={() => navigation.goBack()}>
-            <Text style={styles.saveBtnText}>Save Changes</Text>
+            style={[styles.saveBtn, saving && { opacity: 0.7 }]}
+            onPress={handleSave}
+            disabled={saving}>
+            {saving ? (
+              <ActivityIndicator color={Colors.white} />
+            ) : (
+              <Text style={styles.saveBtnText}>Save Changes</Text>
+            )}
           </TouchableOpacity>
           <View style={{ height: 30 }} />
         </ScrollView>

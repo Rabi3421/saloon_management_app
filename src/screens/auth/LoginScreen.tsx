@@ -9,8 +9,11 @@ import {
   Switch,
   KeyboardAvoidingView,
   Platform,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { Colors } from '../../theme/colors';
+import { useAuth } from '../../context/AuthContext';
 
 interface Props {
   navigation: any;
@@ -21,6 +24,24 @@ export default function LoginScreen({ navigation }: Props) {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [saveMe, setSaveMe] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const { login } = useAuth();
+
+  const handleLogin = async () => {
+    if (!email.trim() || !password.trim()) {
+      Alert.alert('Validation', 'Please enter your email and password.');
+      return;
+    }
+    setLoading(true);
+    try {
+      await login({ email: email.trim(), password });
+      // Navigation is handled automatically by RootNavigator based on isAuthenticated
+    } catch (err: any) {
+      Alert.alert('Login Failed', err.message || 'Invalid credentials.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <KeyboardAvoidingView
@@ -90,9 +111,14 @@ export default function LoginScreen({ navigation }: Props) {
           </View>
 
           <TouchableOpacity
-            style={styles.loginBtn}
-            onPress={() => navigation.navigate('MainApp')}>
-            <Text style={styles.loginBtnText}>Log In</Text>
+            style={[styles.loginBtn, loading && { opacity: 0.7 }]}
+            onPress={handleLogin}
+            disabled={loading}>
+            {loading ? (
+              <ActivityIndicator color={Colors.white} />
+            ) : (
+              <Text style={styles.loginBtnText}>Log In</Text>
+            )}
           </TouchableOpacity>
 
           <View style={styles.orRow}>
@@ -122,7 +148,7 @@ export default function LoginScreen({ navigation }: Props) {
 
           <View style={styles.signupRow}>
             <Text style={styles.signupText}>Don't have an account? </Text>
-            <TouchableOpacity>
+            <TouchableOpacity onPress={() => navigation.navigate('SignUp')}>
               <Text style={styles.signupLink}>SIGN UP</Text>
             </TouchableOpacity>
           </View>

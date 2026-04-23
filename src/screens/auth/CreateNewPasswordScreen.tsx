@@ -8,18 +8,50 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { Colors } from '../../theme/colors';
+import { resetPassword } from '../../api/passwordReset';
 
 interface Props {
   navigation: any;
+  route: any;
 }
 
-export default function CreateNewPasswordScreen({ navigation }: Props) {
-  const [newPassword, setNewPassword] = useState('••••');
+export default function CreateNewPasswordScreen({ navigation, route }: Props) {
+  const resetToken: string = route?.params?.resetToken || '';
+  const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showNew, setShowNew] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  const handleConfirm = async () => {
+    if (!newPassword || newPassword.length < 6) {
+      Alert.alert('Error', 'Password must be at least 6 characters');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      Alert.alert('Error', 'Passwords do not match');
+      return;
+    }
+    if (!resetToken) {
+      Alert.alert('Error', 'Reset token missing. Please restart the flow.');
+      return;
+    }
+    setLoading(true);
+    try {
+      await resetPassword(resetToken, newPassword);
+      Alert.alert('Success', 'Password reset successfully!', [
+        { text: 'Login', onPress: () => navigation.navigate('Login') },
+      ]);
+    } catch (err: any) {
+      Alert.alert('Error', err.message || 'Failed to reset password');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <KeyboardAvoidingView
@@ -72,9 +104,14 @@ export default function CreateNewPasswordScreen({ navigation }: Props) {
           </View>
 
           <TouchableOpacity
-            style={styles.confirmBtn}
-            onPress={() => navigation.navigate('Login')}>
-            <Text style={styles.confirmBtnText}>Confirm</Text>
+            style={[styles.confirmBtn, loading && { opacity: 0.6 }]}
+            onPress={handleConfirm}
+            disabled={loading}>
+            {loading ? (
+              <ActivityIndicator color={Colors.white} />
+            ) : (
+              <Text style={styles.confirmBtnText}>Confirm</Text>
+            )}
           </TouchableOpacity>
         </View>
       </ScrollView>

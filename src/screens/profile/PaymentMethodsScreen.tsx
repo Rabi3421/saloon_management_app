@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -6,29 +6,58 @@ import {
   TouchableOpacity,
   FlatList,
   Modal,
+  ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../../theme/colors';
+import { getPaymentMethods, deletePaymentMethod, PaymentMethod } from '../../api/paymentMethods';
 
-const CARDS = [
-  { id: '1', type: 'mastercard', name: 'Jack Rayan', number: '**** **** **** 3456', expiry: '12/26', color: '#FF6B35', isDefault: true },
-  { id: '2', type: 'visa', name: 'Jack Rayan', number: '**** **** **** 8901', expiry: '09/27', color: '#6C3FC5', isDefault: false },
-];
+const CARD_COLORS = ['#FF6B35', '#6C3FC5', '#0EA5E9', '#10B981'];
 
 interface Props {
   navigation: any;
 }
 
 export default function PaymentMethodsScreen({ navigation }: Props) {
-  const [cards, setCards] = useState(CARDS);
+  const [cards, setCards] = useState<PaymentMethod[]>([]);
+  const [loading, setLoading] = useState(true);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
-  const handleDelete = () => {
-    if (deleteId) {
-      setCards(prev => prev.filter(c => c.id !== deleteId));
+  const fetchCards = useCallback(async () => {
+    try {
+      setLoading(true);
+      const data = await getPaymentMethods();
+      setCards(data);
+    } catch (err: any) {
+      Alert.alert('Error', err.message || 'Failed to load payment methods');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchCards();
+    const unsubscribe = navigation.addListener('focus', fetchCards);
+    return unsubscribe;
+  }, [fetchCards, navigation]);
+
+  const handleDelete = async () => {
+    if (!deleteId) return;
+    setDeleting(true);
+    try {
+      await deletePaymentMethod(deleteId);
+      setCards(prev => prev.filter(c => c._id !== deleteId));
       setDeleteId(null);
+    } catch (err: any) {
+      Alert.alert('Error', err.message || 'Failed to delete card');
+    } finally {
+      setDeleting(false);
     }
   };
+
+  const getCardColor = (index: number) => CARD_COLORS[index % CARD_COLORS.length];
 
   return (
     <SafeAreaView style={styles.root} edges={['top']}>
@@ -40,31 +69,33 @@ export default function PaymentMethodsScreen({ navigation }: Props) {
         <View style={{ width: 36 }} />
       </View>
 
+      {loading ? (
+        <ActivityIndicator style={{ marginTop: 40 }} color={Colors.primary} size="large" />
+      ) : (
       <FlatList
         data={cards}
-        keyExtractor={item => item.id}
+        keyExtractor={item => item._id}
         contentContainerStyle={styles.list}
         ListHeaderComponent={
           <Text style={styles.sectionLabel}>Saved Cards</Text>
         }
-        renderItem={({ item }) => (
-          <View style={[styles.creditCard, { backgroundColor: item.color }]}>
-            {/* Card chip */}
+        renderItem={({ item, index }) => (
+          <View style={[styles.creditCard, { backgroundColor: getCardColor(index) }]}>
             <View style={styles.cardChip}>
               <View style={styles.chipInner} />
             </View>
-            <Text style={styles.cardNumber}>{item.number}</Text>
+            <Text style={styles.cardNumber}>**** **** **** {item.last4}</Text>
             <View style={styles.cardBottom}>
               <View>
                 <Text style={styles.cardLabel}>Card Holder</Text>
-                <Text style={styles.cardValue}>{item.name}</Text>
+                <Text style={styles.cardValue}>{item.cardholderName}</Text>
               </View>
               <View>
                 <Text style={styles.cardLabel}>Expires</Text>
-                <Text style={styles.cardValue}>{item.expiry}</Text>
+                <Text style={styles.cardValue}>{String(item.expiryMonth).padStart(2,'0')}/{item.expiryYear}</Text>
               </View>
               <Text style={styles.cardBrand}>
-                {item.type === 'mastercard' ? '⦿⦿' : 'VISA'}
+                {item.brand?.toLowerCase() === 'mastercard' ? '⦿⦿' : item.brand?.toUpperCase() || 'VISA'}
               </Text>
             </View>
             {item.isDefault && (
@@ -80,7 +111,7 @@ export default function PaymentMethodsScreen({ navigation }: Props) {
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.cardActionBtn}
-                onPress={() => setDeleteId(item.id)}>
+                onPress={() => setDeleteId(item._id)}>
                 <Text style={styles.cardActionDelete}>🗑️ Delete</Text>
               </TouchableOpacity>
             </View>
@@ -95,6 +126,7 @@ export default function PaymentMethodsScreen({ navigation }: Props) {
           </TouchableOpacity>
         }
       />
+      )}
 
       {/* Delete Confirm Modal */}
       <Modal visible={!!deleteId} transparent animationType="fade">
@@ -104,7 +136,7 @@ export default function PaymentMethodsScreen({ navigation }: Props) {
             <Text style={styles.confirmDesc}>
               Are you sure you want to delete this card?
             </Text>
-            <TouchableOpacity style={styles.confirmDeleteBtn} onPress={handleDelete}>
+            <TouchableOpacity style={styles.confirmDeleteBtn} onPress={handleDelete} disabled={deleting}>
               <Text style={styles.confirmDeleteText}>Delete</Text>
             </TouchableOpacity>
             <TouchableOpacity

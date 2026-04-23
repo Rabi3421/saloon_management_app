@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -6,20 +6,45 @@ import {
   TouchableOpacity,
   StyleSheet,
   Image,
+  ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../../theme/colors';
-import { SALONS } from '../../data/mockData';
+import { getFavourites, removeFavourite, FavouriteSalon } from '../../api/favourites';
 
 interface Props {
   navigation: any;
 }
 
 export default function FavoriteSalonsScreen({ navigation }: Props) {
-  const [favorites, setFavorites] = useState(SALONS.slice(0, 5));
+  const [favorites, setFavorites] = useState<FavouriteSalon[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const removeFavorite = (id: number) => {
-    setFavorites(prev => prev.filter(s => String(s.id) !== String(id)));
+  const fetchFavorites = useCallback(async () => {
+    try {
+      setLoading(true);
+      const data = await getFavourites();
+      setFavorites(data);
+    } catch (err: any) {
+      Alert.alert('Error', err.message || 'Failed to load favourites');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchFavorites();
+  }, [fetchFavorites]);
+
+  const handleRemove = async (item: FavouriteSalon) => {
+    const targetId = item.salonId || item._id;
+    try {
+      await removeFavourite(targetId);
+      setFavorites(prev => prev.filter(s => (s.salonId || s._id) !== targetId));
+    } catch (err: any) {
+      Alert.alert('Error', err.message || 'Failed to remove favourite');
+    }
   };
 
   const renderItem = ({ item }: { item: any }) => (
@@ -28,7 +53,7 @@ export default function FavoriteSalonsScreen({ navigation }: Props) {
       onPress={() => navigation.navigate('SalonDetail', { salon: item })}>
       <Image source={{ uri: item.image }} style={styles.image} />
       <View style={styles.info}>
-        <Text style={styles.name} numberOfLines={1}>{item.name}</Text>
+        <Text style={styles.name} numberOfLines={1}>{item.name || item.salonName || 'Salon'}</Text>
         <Text style={styles.address} numberOfLines={1}>📍 {item.address}</Text>
         <View style={styles.metaRow}>
           <Text style={styles.rating}>⭐ {item.rating}</Text>
@@ -39,7 +64,7 @@ export default function FavoriteSalonsScreen({ navigation }: Props) {
       </View>
       <TouchableOpacity
         style={styles.heartBtn}
-        onPress={() => removeFavorite(item.id)}>
+        onPress={() => handleRemove(item)}>
         <Text style={styles.heart}>❤️</Text>
       </TouchableOpacity>
     </TouchableOpacity>
@@ -55,7 +80,9 @@ export default function FavoriteSalonsScreen({ navigation }: Props) {
         <View style={{ width: 36 }} />
       </View>
 
-      {favorites.length === 0 ? (
+      {loading ? (
+        <ActivityIndicator style={{ marginTop: 40 }} color={Colors.primary} size="large" />
+      ) : favorites.length === 0 ? (
         <View style={styles.empty}>
           <Text style={styles.emptyIcon}>🤍</Text>
           <Text style={styles.emptyTitle}>No Favourites Yet</Text>
@@ -71,7 +98,7 @@ export default function FavoriteSalonsScreen({ navigation }: Props) {
       ) : (
         <FlatList
           data={favorites}
-          keyExtractor={item => item.id.toString()}
+          keyExtractor={item => item._id}
           renderItem={renderItem}
           contentContainerStyle={styles.list}
           showsVerticalScrollIndicator={false}

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -6,19 +6,30 @@ import {
   FlatList,
   TouchableOpacity,
   TextInput,
+  ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../../theme/colors';
-
-const MESSAGES = [
-  { id: '1', name: 'Serenity Salon', last: 'Your appointment is confirmed!', time: '9:30 AM', unread: 2 },
-  { id: '2', name: 'Uptown Hair', last: 'Thank you for your visit!', time: 'Yesterday', unread: 0 },
-  { id: '3', name: 'Braids & Layers', last: 'We have a special offer for you', time: 'Mon', unread: 1 },
-  { id: '4', name: 'The Cleanup', last: 'See you tomorrow at 2 PM!', time: 'Sun', unread: 0 },
-];
+import { getConversations, Conversation } from '../../api/messages';
 
 export default function MessageScreen({ navigation }: { navigation: any }) {
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const data = await getConversations();
+        setConversations(data);
+      } catch (err: any) {
+        Alert.alert('Error', err.message || 'Failed to load messages');
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
 
   return (
     <SafeAreaView style={styles.root}>
@@ -35,25 +46,42 @@ export default function MessageScreen({ navigation }: { navigation: any }) {
           onChangeText={setSearch}
         />
       </View>
+      {loading ? (
+        <ActivityIndicator style={{ marginTop: 40 }} color={Colors.primary} size="large" />
+      ) : (
       <FlatList
-        data={MESSAGES.filter(m => m.name.toLowerCase().includes(search.toLowerCase()))}
-        keyExtractor={item => item.id}
+        data={conversations.filter(m => (m.salonName || '').toLowerCase().includes(search.toLowerCase()))}
+        keyExtractor={item => item._id}
         contentContainerStyle={styles.list}
+        ListEmptyComponent={
+          <View style={{ alignItems: 'center', marginTop: 60 }}>
+            <Text style={{ fontSize: 48 }}>💬</Text>
+            <Text style={{ fontSize: 16, color: Colors.textSecondary, marginTop: 12 }}>No conversations yet</Text>
+          </View>
+        }
         renderItem={({ item }) => (
-          <TouchableOpacity style={styles.messageRow} onPress={() => navigation.navigate('Chat', { name: item.name })}>
+          <TouchableOpacity
+            style={styles.messageRow}
+            onPress={() => navigation.navigate('Chat', {
+              conversationId: item._id,
+              name: item.salonName || 'Salon',
+              salonId: item.salonId,
+            })}>
             <View style={styles.avatar}>
-              <Text style={styles.avatarText}>{item.name[0]}</Text>
+              <Text style={styles.avatarText}>{(item.salonName || 'S')[0]}</Text>
             </View>
             <View style={styles.messageInfo}>
               <View style={styles.messageTop}>
-                <Text style={styles.messageName}>{item.name}</Text>
-                <Text style={styles.messageTime}>{item.time}</Text>
+                <Text style={styles.messageName}>{item.salonName || 'Salon'}</Text>
+                <Text style={styles.messageTime}>
+                  {item.updatedAt ? new Date(item.updatedAt).toLocaleDateString() : ''}
+                </Text>
               </View>
               <View style={styles.messageBottom}>
-                <Text style={styles.messageLast} numberOfLines={1}>{item.last}</Text>
-                {item.unread > 0 && (
+                <Text style={styles.messageLast} numberOfLines={1}>{item.lastMessage || ''}</Text>
+                {(item.unreadCount ?? 0) > 0 && (
                   <View style={styles.unreadBadge}>
-                    <Text style={styles.unreadText}>{item.unread}</Text>
+                    <Text style={styles.unreadText}>{item.unreadCount}</Text>
                   </View>
                 )}
               </View>
@@ -61,6 +89,7 @@ export default function MessageScreen({ navigation }: { navigation: any }) {
           </TouchableOpacity>
         )}
       />
+      )}
     </SafeAreaView>
   );
 }
