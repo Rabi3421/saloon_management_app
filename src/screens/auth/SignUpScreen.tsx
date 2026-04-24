@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -13,12 +13,14 @@ import {
 } from 'react-native';
 import { Colors } from '../../theme/colors';
 import { useAuth } from '../../context/AuthContext';
+import { sendRegistrationOtp } from '../../api/auth';
 
 interface Props {
   navigation: any;
 }
 
 export default function SignUpScreen({ navigation }: Props) {
+  // Step 1 state
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
@@ -27,10 +29,17 @@ export default function SignUpScreen({ navigation }: Props) {
   const [showPass, setShowPass] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [agreed, setAgreed] = useState(false);
+
+  // Step 2 state
+  const [step, setStep] = useState<1 | 2>(1);
+  const [otp, setOtp] = useState(['', '', '', '', '', '']);
+  const otpRefs = useRef<(TextInput | null)[]>([]);
+
   const [loading, setLoading] = useState(false);
   const { register } = useAuth();
 
-  const handleSignUp = async () => {
+  // ── Step 1: send OTP ──────────────────────────────────────────────────────
+  const handleSendOtp = async () => {
     if (!name.trim() || !email.trim() || !phone.trim() || !password) {
       Alert.alert('Validation', 'Please fill in all fields.');
       return;
@@ -45,15 +54,131 @@ export default function SignUpScreen({ navigation }: Props) {
     }
     setLoading(true);
     try {
-      await register({ name: name.trim(), email: email.trim(), phone: phone.trim(), password });
-      // Navigation handled automatically by RootNavigator
+      await sendRegistrationOtp(email.trim());
+      setStep(2);
     } catch (err: any) {
-      Alert.alert('Sign Up Failed', err.message || 'Please try again.');
+      Alert.alert('Error', err.message || 'Failed to send OTP. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
+  // ── Step 2: verify OTP & register ────────────────────────────────────────
+  const handleVerifyAndRegister = async () => {
+    const otpCode = otp.join('');
+    if (otpCode.length < 6) {
+      Alert.alert('Validation', 'Please enter the 6-digit OTP sent to your email.');
+      return;
+    }
+    setLoading(true);
+    try {
+      await register({
+        name: name.trim(),
+        email: email.trim(),
+        phone: phone.trim(),
+        password,
+        otp: otpCode,
+      });
+      // Navigation handled automatically by RootNavigator
+    } catch (err: any) {
+      Alert.alert('Sign Up Failed', err.message || 'Invalid OTP. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleOtpChange = (value: string, index: number) => {
+    const newOtp = [...otp];
+    newOtp[index] = value;
+    setOtp(newOtp);
+    if (value && index < 5) {
+      otpRefs.current[index + 1]?.focus();
+    }
+  };
+
+  const handleOtpKeyPress = (key: string, index: number) => {
+    if (key === 'Backspace' && !otp[index] && index > 0) {
+      otpRefs.current[index - 1]?.focus();
+    }
+  };
+
+  const handleResendOtp = async () => {
+    setLoading(true);
+    try {
+      await sendRegistrationOtp(email.trim());
+      setOtp(['', '', '', '', '', '']);
+      Alert.alert('OTP Sent', 'A new OTP has been sent to your email.');
+    } catch (err: any) {
+      Alert.alert('Error', err.message || 'Failed to resend OTP.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ── Render Step 2 (OTP) ──────────────────────────────────────────────────
+  if (step === 2) {
+    return (
+      <KeyboardAvoidingView
+        style={styles.root}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+          <View style={styles.header}>
+            <TouchableOpacity style={styles.backBtn} onPress={() => setStep(1)}>
+              <Text style={styles.backArrow}>←</Text>
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>Verify Email</Text>
+            <View style={{ width: 36 }} />
+          </View>
+
+          <View style={styles.banner}>
+            <Text style={styles.bannerText}>
+              Enter the 6-digit OTP sent to{'\n'}
+              <Text style={{ fontWeight: '800' }}>{email}</Text>
+            </Text>
+          </View>
+
+          <View style={styles.card}>
+            <Text style={styles.otpLabel}>Enter OTP</Text>
+            <View style={styles.otpRow}>
+              {otp.map((digit, i) => (
+                <TextInput
+                  key={i}
+                  ref={ref => { otpRefs.current[i] = ref; }}
+                  style={[styles.otpBox, digit ? styles.otpBoxFilled : null]}
+                  value={digit}
+                  onChangeText={v => handleOtpChange(v.replace(/[^0-9]/g, '').slice(-1), i)}
+                  onKeyPress={({ nativeEvent }) => handleOtpKeyPress(nativeEvent.key, i)}
+                  keyboardType="number-pad"
+                  maxLength={1}
+                  selectTextOnFocus
+                />
+              ))}
+            </View>
+
+            <TouchableOpacity
+              style={[styles.signUpBtn, loading && { opacity: 0.7 }]}
+              onPress={handleVerifyAndRegister}
+              disabled={loading}>
+              {loading ? (
+                <ActivityIndicator color={Colors.white} />
+              ) : (
+                <Text style={styles.signUpBtnText}>Verify & Create Account</Text>
+              )}
+            </TouchableOpacity>
+
+            <View style={styles.resendRow}>
+              <Text style={styles.loginGrey}>Didn't receive the OTP? </Text>
+              <TouchableOpacity onPress={handleResendOtp} disabled={loading}>
+                <Text style={styles.loginLink}>Resend</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    );
+  }
+
+  // ── Render Step 1 (Form) ─────────────────────────────────────────────────
   return (
     <KeyboardAvoidingView
       style={styles.root}
@@ -124,7 +249,7 @@ export default function SignUpScreen({ navigation }: Props) {
 
           <TouchableOpacity
             style={[styles.signUpBtn, loading && { opacity: 0.7 }]}
-            onPress={handleSignUp}
+            onPress={handleSendOtp}
             disabled={loading}>
             {loading ? (
               <ActivityIndicator color={Colors.white} />
@@ -303,6 +428,23 @@ const styles = StyleSheet.create({
   socialBorder: { borderWidth: 1, borderColor: Colors.greyBorder },
   socialIcon: { fontSize: 18, fontWeight: '700' },
   loginRow: { flexDirection: 'row', justifyContent: 'center' },
+  resendRow: { flexDirection: 'row', justifyContent: 'center' },
   loginGrey: { fontSize: 13, color: Colors.textSecondary },
   loginLink: { fontSize: 13, color: Colors.primary, fontWeight: '700' },
+  // OTP styles
+  otpLabel: { fontSize: 15, fontWeight: '700', color: Colors.text, marginBottom: 20, marginTop: 8 },
+  otpRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 32, gap: 8 },
+  otpBox: {
+    flex: 1,
+    height: 54,
+    borderWidth: 1.5,
+    borderColor: Colors.greyBorder,
+    borderRadius: 12,
+    textAlign: 'center',
+    fontSize: 22,
+    fontWeight: '700',
+    color: Colors.text,
+    backgroundColor: Colors.white,
+  },
+  otpBoxFilled: { borderColor: Colors.primary, backgroundColor: '#F5F0FF' },
 });

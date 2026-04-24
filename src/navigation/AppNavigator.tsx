@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -54,6 +54,49 @@ import AboutUsScreen from '../screens/settings/AboutUsScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
+
+const OWNER_TABS = [
+  { name: 'OwnerDashboardTab', label: 'Home',     icon: '⊞' },
+  { name: 'OwnerBookingsTab',  label: 'Bookings', icon: '◫' },
+  { name: 'OwnerStaffTab',     label: 'Staff',    icon: '◉' },
+  { name: 'OwnerServicesTab',  label: 'Services', icon: '✦' },
+  { name: 'OwnerProfileTab',   label: 'Profile',  icon: '◎' },
+];
+
+function OwnerCustomTabBar({ state, navigation }: any) {
+  return (
+    <View style={tabStyles.wrapper}>
+      <View style={tabStyles.container}>
+        {state.routes.map((route: any, index: number) => {
+          const focused = state.index === index;
+          const tab = OWNER_TABS[index];
+          return (
+            <TouchableOpacity
+              key={route.key}
+              style={tabStyles.tab}
+              onPress={() => navigation.navigate(route.name)}
+              activeOpacity={0.8}>
+              {focused && <View style={tabStyles.activePill} />}
+              <View style={[tabStyles.iconWrap, focused && tabStyles.iconWrapActive]}>
+                <Text style={[tabStyles.icon, focused && tabStyles.iconActive]}>
+                  {getTabSVG(index, focused)}
+                </Text>
+              </View>
+              <Text style={[tabStyles.label, focused && tabStyles.labelActive]}>
+                {tab.label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
+function getTabSVG(index: number, focused: boolean) {
+  const icons = ['🏠', '📋', '👥', '✂️', '👤'];
+  return icons[index] ?? '●';
+}
 
 function TabIcon({ label, emoji, focused }: { label: string; emoji: string; focused: boolean }) {
   return (
@@ -159,56 +202,13 @@ const OwnerTab = createBottomTabNavigator();
 function OwnerTabs() {
   return (
     <OwnerTab.Navigator
-      screenOptions={{
-        headerShown: false,
-        tabBarStyle: styles.tabBar,
-        tabBarShowLabel: false,
-      }}>
-      <OwnerTab.Screen
-        name="OwnerDashboardTab"
-        component={OwnerDashboardScreen}
-        options={{
-          tabBarIcon: ({ focused }) => (
-            <TabIcon label="Dashboard" emoji="🏠" focused={focused} />
-          ),
-        }}
-      />
-      <OwnerTab.Screen
-        name="OwnerBookingsTab"
-        component={OwnerBookingsScreen}
-        options={{
-          tabBarIcon: ({ focused }) => (
-            <TabIcon label="Bookings" emoji="📋" focused={focused} />
-          ),
-        }}
-      />
-      <OwnerTab.Screen
-        name="OwnerStaffTab"
-        component={OwnerStaffScreen}
-        options={{
-          tabBarIcon: ({ focused }) => (
-            <TabIcon label="Staff" emoji="👥" focused={focused} />
-          ),
-        }}
-      />
-      <OwnerTab.Screen
-        name="OwnerServicesTab"
-        component={OwnerServicesScreen}
-        options={{
-          tabBarIcon: ({ focused }) => (
-            <TabIcon label="Services" emoji="✂️" focused={focused} />
-          ),
-        }}
-      />
-      <OwnerTab.Screen
-        name="OwnerProfileTab"
-        component={OwnerProfileScreen}
-        options={{
-          tabBarIcon: ({ focused }) => (
-            <TabIcon label="Profile" emoji="👤" focused={focused} />
-          ),
-        }}
-      />
+      tabBar={props => <OwnerCustomTabBar {...props} />}
+      screenOptions={{ headerShown: false }}>
+      <OwnerTab.Screen name="OwnerDashboardTab" component={OwnerDashboardScreen} />
+      <OwnerTab.Screen name="OwnerBookingsTab"  component={OwnerBookingsScreen} />
+      <OwnerTab.Screen name="OwnerStaffTab"     component={OwnerStaffScreen} />
+      <OwnerTab.Screen name="OwnerServicesTab"  component={OwnerServicesScreen} />
+      <OwnerTab.Screen name="OwnerProfileTab"   component={OwnerProfileScreen} />
     </OwnerTab.Navigator>
   );
 }
@@ -219,6 +219,7 @@ function OwnerApp() {
       <OwnerStack.Screen name="OwnerTabs" component={OwnerTabs} />
       <OwnerStack.Screen name="OwnerMessages" component={MessageScreen} />
       <OwnerStack.Screen name="OwnerNotifications" component={NotificationsScreen} />
+      <OwnerStack.Screen name="OwnerSalonProfile" component={EditProfileScreen} />
       <OwnerStack.Screen name="Chat" component={ChatScreen} />
       <OwnerStack.Screen name="EditProfile" component={EditProfileScreen} />
       <OwnerStack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} />
@@ -270,6 +271,69 @@ function RootNavigator() {
     </Stack.Navigator>
   );
 }
+
+const tabStyles = StyleSheet.create({
+  wrapper: {
+    backgroundColor: Colors.white,
+    paddingBottom: 8,
+    paddingTop: 6,
+    borderTopWidth: 1,
+    borderTopColor: Colors.greyBorder,
+    elevation: 20,
+    shadowColor: '#6C3FC5',
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: -4 },
+  },
+  container: {
+    flexDirection: 'row',
+    marginHorizontal: 8,
+  },
+  tab: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 4,
+    position: 'relative',
+  },
+  activePill: {
+    position: 'absolute',
+    top: 0,
+    left: 8,
+    right: 8,
+    height: 3,
+    borderRadius: 2,
+    backgroundColor: Colors.primary,
+  },
+  iconWrap: {
+    width: 40,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 10,
+    marginBottom: 2,
+  },
+  iconWrapActive: {
+    backgroundColor: Colors.primary + '18',
+  },
+  icon: {
+    fontSize: 20,
+    opacity: 0.45,
+  },
+  iconActive: {
+    opacity: 1,
+  },
+  label: {
+    fontSize: 10,
+    color: Colors.textSecondary,
+    fontWeight: '500',
+    letterSpacing: 0.2,
+  },
+  labelActive: {
+    color: Colors.primary,
+    fontWeight: '800',
+  },
+});
 
 const styles = StyleSheet.create({
   tabBar: {

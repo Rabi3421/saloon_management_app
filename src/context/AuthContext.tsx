@@ -6,11 +6,12 @@ import {
   logout as apiLogout,
   getStoredToken,
   storeUser,
+  sendRegistrationOtp as apiSendOtp,
   AuthUser,
   LoginPayload,
   RegisterCustomerPayload,
 } from '../api/auth';
-import { setSalonId } from '../api/config';
+
 
 interface AuthState {
   isLoading: boolean;
@@ -42,8 +43,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const token = await getStoredToken();
         const rawUser = await AsyncStorage.getItem('auth_user');
         const user: AuthUser | null = rawUser ? JSON.parse(rawUser) : null;
-        const salonId = await AsyncStorage.getItem('salon_id');
-        if (salonId) setSalonId(salonId);
 
         setState({
           isLoading: false,

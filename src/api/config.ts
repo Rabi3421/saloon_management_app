@@ -1,16 +1,22 @@
-// Base URL for the SalonOS backend
-// Android emulator routes "10.0.2.2" to the host machine's localhost.
-// iOS simulator can use "localhost" directly.
-import { Platform } from 'react-native';
-export const BASE_URL = Platform.OS === 'android'
-  ? 'http://10.0.2.2:3000'
-  : 'http://localhost:3000';
+/**
+ * App-level configuration loaded from .env at build time.
+ *
+ * This app is deployed per-salon. Each salon gets its own build with its own
+ * .env file that contains the correct SALON_ID. All API calls automatically
+ * scope to that salon — the same codebase serves every salon, only the .env
+ * changes between deployments.
+ *
+ * .env keys:
+ *   API_BASE_URL  – backend base URL (e.g. https://api.salonos.com)
+ *   SALON_ID      – the unique ID of the salon this build belongs to
+ */
+import { API_BASE_URL, SALON_ID as ENV_SALON_ID } from '@env';
 
-// The salon ID for this specific salon app instance.
-// In production, this would come from an env variable (NEXT_PUBLIC_SALON_ID)
-// For now, it's stored here and gets set after first login/registration.
-export let SALON_ID = '';
+/** Backend base URL read from .env */
+export const BASE_URL: string = API_BASE_URL;
 
-export const setSalonId = (id: string) => {
-  SALON_ID = id;
-};
+/**
+ * The salon this app instance belongs to.
+ * Set once at build time via .env — never changes at runtime.
+ */
+export const SALON_ID: string = ENV_SALON_ID;

@@ -18,10 +18,9 @@ apiClient.interceptors.request.use(
       config.headers.Authorization = `Bearer ${token}`;
     }
 
-    // Attach salon ID for public routes that need it
-    const salonId = await AsyncStorage.getItem('salon_id') || SALON_ID;
-    if (salonId && !config.headers['X-Salon-ID']) {
-      config.headers['X-Salon-ID'] = salonId;
+    // Always attach salon ID from .env (build-time constant)
+    if (SALON_ID && !config.headers['X-Salon-ID']) {
+      config.headers['X-Salon-ID'] = SALON_ID;
     }
 
     return config;

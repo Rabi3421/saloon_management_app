@@ -2,6 +2,10 @@
 #
 .DS_Store
 
+# Environment variables (per-salon secrets — never commit)
+.env
+# .env.example is safe to commit (no real values)
+
 # Xcode
 #
 build/

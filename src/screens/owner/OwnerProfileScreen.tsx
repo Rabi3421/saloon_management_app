@@ -20,6 +20,11 @@ interface Props {
 export default function OwnerProfileScreen({ navigation }: Props) {
   const { user, logout } = useAuth();
 
+  // navigation prop here belongs to the Tab navigator.
+  // To push screens onto the parent OwnerStack we use getParent().
+  const stackNav = navigation.getParent();
+  const go = (screen: string) => stackNav?.navigate(screen);
+
   const handleLogout = () => {
     Alert.alert(
       'Logout',
@@ -38,13 +43,13 @@ export default function OwnerProfileScreen({ navigation }: Props) {
   };
 
   const menuItems = [
-    { icon: '🏪', label: 'Salon Profile', action: () => navigation.navigate('OwnerSalonProfile') },
-    { icon: '💬', label: 'Messages', action: () => navigation.navigate('OwnerMessages') },
-    { icon: '🔔', label: 'Notifications', action: () => navigation.navigate('OwnerNotifications') },
+    { icon: '🏪', label: 'Salon Profile', action: () => go('OwnerSalonProfile') },
+    { icon: '💬', label: 'Messages', action: () => go('OwnerMessages') },
+    { icon: '🔔', label: 'Notifications', action: () => go('OwnerNotifications') },
     { icon: '🔒', label: 'Change Password', action: () => Alert.alert('Coming Soon', 'Change password coming soon') },
-    { icon: '❓', label: 'Help & Support', action: () => navigation.navigate('HelpSupport') },
-    { icon: '📄', label: 'Privacy Policy', action: () => navigation.navigate('PrivacyPolicy') },
-    { icon: 'ℹ️', label: 'About Us', action: () => navigation.navigate('AboutUs') },
+    { icon: '❓', label: 'Help & Support', action: () => go('HelpSupport') },
+    { icon: '📄', label: 'Privacy Policy', action: () => go('PrivacyPolicy') },
+    { icon: 'ℹ️', label: 'About Us', action: () => go('AboutUs') },
   ];
 
   const initials = (user?.name || 'O')

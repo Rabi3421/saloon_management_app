@@ -37,6 +37,8 @@ export default function LoginScreen({ navigation }: Props) {
       await login({ email: email.trim(), password });
       // Navigation is handled automatically by RootNavigator based on isAuthenticated
     } catch (err: any) {
+      console.log('Login error:', err);
+      console.log('Login error message:', err?.message);
       Alert.alert('Login Failed', err.message || 'Invalid credentials.');
     } finally {
       setLoading(false);

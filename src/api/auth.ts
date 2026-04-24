@@ -1,6 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import apiClient from './client';
-import { setSalonId } from './config';
 
 export interface LoginPayload {
   email: string;
@@ -12,6 +11,11 @@ export interface RegisterCustomerPayload {
   email: string;
   phone: string;
   password: string;
+  otp: string;
+}
+
+export async function sendRegistrationOtp(email: string): Promise<void> {
+  await apiClient.post('/api/auth/send-registration-otp', { email });
 }
 
 export interface AuthUser {
@@ -28,17 +32,15 @@ export interface AuthResponse {
   salon?: { _id: string; name: string };
 }
 
-/** Persist token and optional salon ID to AsyncStorage */
+/** Persist token to AsyncStorage */
 async function persistAuthData(data: AuthResponse) {
   await AsyncStorage.setItem('auth_token', data.token);
-  if (data.salon?._id) {
-    await AsyncStorage.setItem('salon_id', data.salon._id);
-    setSalonId(data.salon._id);
-  }
 }
 
 export async function login(payload: LoginPayload): Promise<AuthResponse> {
+  console.log('Logging in with', payload);
   const res = await apiClient.post('/api/auth/login', payload);
+  console.log('Login response', res.data);
   const data: AuthResponse = res.data.data;
   await persistAuthData(data);
   return data;
