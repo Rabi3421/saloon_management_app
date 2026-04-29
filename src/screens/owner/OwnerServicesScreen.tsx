@@ -142,9 +142,14 @@ export default function OwnerServicesScreen({ navigation }: Props) {
     <SafeAreaView style={styles.root} edges={['top']}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Services ({services.length})</Text>
-        <TouchableOpacity style={styles.addBtn} onPress={openAdd}>
-          <Text style={styles.addBtnText}>+ Add</Text>
-        </TouchableOpacity>
+        <View style={styles.headerActions}>
+          <TouchableOpacity style={styles.secondaryBtn} onPress={() => navigation.navigate('OwnerPromotions')}>
+            <Text style={styles.secondaryBtnText}>Offers</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.addBtn} onPress={openAdd}>
+            <Text style={styles.addBtnText}>+ Add</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {loading ? (
@@ -237,6 +242,9 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: Colors.background },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 14 },
   headerTitle: { fontSize: 22, fontWeight: '800', color: Colors.text },
+  headerActions: { flexDirection: 'row', gap: 8, alignItems: 'center' },
+  secondaryBtn: { backgroundColor: '#F5F0FF', borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8 },
+  secondaryBtnText: { color: Colors.primary, fontWeight: '700', fontSize: 13 },
   addBtn: { backgroundColor: Colors.primary, borderRadius: 20, paddingHorizontal: 16, paddingVertical: 8 },
   addBtnText: { color: Colors.white, fontWeight: '700', fontSize: 13 },
   list: { paddingHorizontal: 16, paddingBottom: 20 },

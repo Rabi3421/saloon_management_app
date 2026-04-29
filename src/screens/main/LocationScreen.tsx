@@ -1,18 +1,41 @@
-import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../../theme/colors';
+import { getPublicSalonInfo, SalonInfo } from '../../api/public';
 
 export default function LocationScreen() {
+  const [salon, setSalon] = useState<SalonInfo | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const data = await getPublicSalonInfo();
+        setSalon(data);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
   return (
     <SafeAreaView style={styles.root}>
       <View style={styles.header}>
         <Text style={styles.title}>Location</Text>
       </View>
       <View style={styles.center}>
-        <Text style={styles.mapEmoji}>🗺️</Text>
-        <Text style={styles.comingSoon}>Map view coming soon</Text>
-        <Text style={styles.sub}>Nearby salons will appear here</Text>
+        {loading ? (
+          <ActivityIndicator color={Colors.primary} size="large" />
+        ) : (
+          <>
+            <Text style={styles.mapEmoji}>📍</Text>
+            <Text style={styles.comingSoon}>{salon?.name || 'Salon Location'}</Text>
+            <Text style={styles.sub}>{salon?.address || 'Address not available'}</Text>
+            {salon?.phone ? <Text style={styles.meta}>📞 {salon.phone}</Text> : null}
+            {salon?.website ? <Text style={styles.meta}>🌐 {salon.website}</Text> : null}
+          </>
+        )}
       </View>
     </SafeAreaView>
   );
@@ -26,4 +49,5 @@ const styles = StyleSheet.create({
   mapEmoji: { fontSize: 64, marginBottom: 16 },
   comingSoon: { fontSize: 18, fontWeight: '700', color: Colors.text, marginBottom: 8 },
   sub: { fontSize: 13, color: Colors.textSecondary },
+  meta: { fontSize: 13, color: Colors.text, marginTop: 8 },
 });

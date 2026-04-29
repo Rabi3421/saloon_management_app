@@ -1,20 +1,18 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
   View,
   Text,
   StyleSheet,
+  Alert,
   TouchableOpacity,
   ScrollView,
   Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../../theme/colors';
-
-const PAYMENT_METHODS = [
-  { id: '1', type: 'visa', last4: '3456', name: 'Mastercard', expiry: '12/26', color: '#FF6B35' },
-  { id: '2', type: 'mastercard', last4: '8901', name: 'Visa Card', expiry: '09/27', color: '#6C3FC5' },
-  { id: '3', type: 'cash', last4: '', name: 'Cash', expiry: '', color: '#10B981' },
-];
+import { getPaymentMethods, PaymentMethod } from '../../api/paymentMethods';
+import { payForBooking } from '../../api/reviews';
 
 interface Props {
   navigation: any;
@@ -22,12 +20,61 @@ interface Props {
 }
 
 export default function PaymentScreen({ navigation, route }: Props) {
-  const { total, salon, date, time } = route.params || {};
-  const [selectedMethod, setSelectedMethod] = useState('1');
+  const { total, salon, date, time, bookingId, service, booking, promotion } = route.params || {};
+  const [methods, setMethods] = useState<PaymentMethod[]>([]);
+  const [selectedMethod, setSelectedMethod] = useState('');
   const [showSuccess, setShowSuccess] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [paying, setPaying] = useState(false);
 
-  const handlePay = () => {
-    setShowSuccess(true);
+  useEffect(() => {
+    (async () => {
+      try {
+        const data = await getPaymentMethods();
+        setMethods(data);
+        const defaultMethod = data.find(item => item.isDefault) || data[0];
+        if (defaultMethod?._id) setSelectedMethod(defaultMethod._id);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  const tax = 0;
+  const subtotal = booking?.subtotalAmount ?? service?.price ?? total ?? 0;
+  const discount = booking?.discountAmount ?? 0;
+  const finalTotal = booking?.totalAmount ?? total ?? 0;
+  const methodsWithCash = useMemo(
+    () => [
+      ...methods.map(method => ({
+        id: method._id,
+        type: method.brand,
+        last4: method.last4,
+        name: method.cardholderName,
+        expiry: `${String(method.expiryMonth).padStart(2, '0')}/${String(method.expiryYear).slice(-2)}`,
+        color: method.isDefault ? '#6C3FC5' : '#FF6B35',
+      })),
+      { id: 'cash', type: 'cash', last4: '', name: 'Pay at Salon', expiry: '', color: '#10B981' },
+    ],
+    [methods],
+  );
+
+  const handlePay = async () => {
+    if (!bookingId) {
+      Alert.alert('Payment Error', 'Booking reference is missing.');
+      return;
+    }
+    setPaying(true);
+    try {
+      if (selectedMethod !== 'cash') {
+        await payForBooking(bookingId, selectedMethod);
+      }
+      setShowSuccess(true);
+    } catch (err: any) {
+      Alert.alert('Payment Error', err.message || 'Unable to complete payment.');
+    } finally {
+      setPaying(false);
+    }
   };
 
   return (
@@ -44,14 +91,16 @@ export default function PaymentScreen({ navigation, route }: Props) {
         {/* Amount */}
         <View style={styles.amountCard}>
           <Text style={styles.amountLabel}>Total Amount</Text>
-          <Text style={styles.amountValue}>${total || 55}</Text>
+          <Text style={styles.amountValue}>₹{finalTotal || 0}</Text>
           <Text style={styles.amountSalon}>{salon?.name || 'Serenity Salon'}</Text>
           <Text style={styles.amountDate}>{date} · {time}</Text>
         </View>
 
         {/* Payment methods */}
         <Text style={styles.sectionTitle}>Payment Method</Text>
-        {PAYMENT_METHODS.map(method => (
+        {loading ? (
+          <ActivityIndicator color={Colors.primary} style={{ marginBottom: 16 }} />
+        ) : methodsWithCash.map(method => (
           <TouchableOpacity
             key={method.id}
             style={[styles.methodCard, selectedMethod === method.id && styles.methodCardSelected]}
@@ -87,24 +136,30 @@ export default function PaymentScreen({ navigation, route }: Props) {
         <View style={styles.summaryCard}>
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Services</Text>
-            <Text style={styles.summaryValue}>${(total || 55) - 5}</Text>
+            <Text style={styles.summaryValue}>₹{subtotal}</Text>
           </View>
+          {promotion && discount > 0 && (
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>{promotion.title || 'Offer Applied'}</Text>
+              <Text style={[styles.summaryValue, { color: Colors.green }]}>-₹{discount}</Text>
+            </View>
+          )}
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Tax</Text>
-            <Text style={styles.summaryValue}>$5</Text>
+            <Text style={styles.summaryValue}>₹{tax}</Text>
           </View>
           <View style={styles.summaryDivider} />
           <View style={styles.summaryRow}>
             <Text style={styles.summaryTotal}>Total</Text>
-            <Text style={styles.summaryTotalValue}>${total || 55}</Text>
+            <Text style={styles.summaryTotalValue}>₹{finalTotal || 0}</Text>
           </View>
         </View>
         <View style={{ height: 100 }} />
       </ScrollView>
 
       <View style={styles.footer}>
-        <TouchableOpacity style={styles.payBtn} onPress={handlePay}>
-          <Text style={styles.payBtnText}>Pay ${total || 55}</Text>
+        <TouchableOpacity style={[styles.payBtn, paying && { opacity: 0.7 }]} onPress={handlePay} disabled={paying || (!selectedMethod && methodsWithCash.length > 0)}>
+          {paying ? <ActivityIndicator color={Colors.white} /> : <Text style={styles.payBtnText}>{selectedMethod === 'cash' ? 'Confirm Booking' : `Pay ₹${finalTotal || 0}`}</Text>}
         </TouchableOpacity>
       </View>
 
@@ -122,13 +177,13 @@ export default function PaymentScreen({ navigation, route }: Props) {
             <View style={styles.successDetails}>
               <Text style={styles.successDetail}>📅 {date}</Text>
               <Text style={styles.successDetail}>⏰ {time}</Text>
-              <Text style={styles.successDetail}>💰 ${total}</Text>
+              <Text style={styles.successDetail}>💰 ₹{finalTotal}</Text>
             </View>
             <TouchableOpacity
               style={styles.successBtn}
               onPress={() => {
                 setShowSuccess(false);
-                navigation.navigate('MainApp');
+                navigation.navigate('Booking');
               }}>
               <Text style={styles.successBtnText}>View My Bookings</Text>
             </TouchableOpacity>
@@ -136,7 +191,7 @@ export default function PaymentScreen({ navigation, route }: Props) {
               style={styles.successBtnOutline}
               onPress={() => {
                 setShowSuccess(false);
-                navigation.navigate('MainApp');
+                navigation.navigate('Home');
               }}>
               <Text style={styles.successBtnOutlineText}>Back to Home</Text>
             </TouchableOpacity>

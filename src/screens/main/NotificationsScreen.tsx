@@ -8,18 +8,14 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import { Colors } from '../../theme/colors';
-import apiClient from '../../api/client';
-
-interface AppNotification {
-  _id: string;
-  type?: string;
-  title?: string;
-  body?: string;
-  message?: string;
-  createdAt?: string;
-  read?: boolean;
-}
+import {
+  AppNotification,
+  getNotifications,
+  markAllNotificationsRead,
+  markNotificationRead,
+} from '../../api/notifications';
 
 const TYPE_ICONS: Record<string, string> = {
   booking: '📅',
@@ -41,6 +37,7 @@ interface Props {
 
 export default function NotificationsScreen({ navigation }: Props) {
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -48,16 +45,23 @@ export default function NotificationsScreen({ navigation }: Props) {
     setLoading(true);
     setError(null);
     try {
-      const res = await apiClient.get('/api/user/notifications');
-      const raw = res?.data?.data ?? res?.data ?? [];
-      setNotifications(Array.isArray(raw) ? raw : []);
+      const data = await getNotifications();
+      setNotifications(data.notifications);
+      setUnreadCount(data.unreadCount);
     } catch (err: any) {
       setError(err?.message || 'Failed to load notifications');
       setNotifications([]);
+      setUnreadCount(0);
     } finally {
       setLoading(false);
     }
   }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchNotifications();
+    }, [fetchNotifications]),
+  );
 
   useEffect(() => {
     fetchNotifications();
@@ -65,23 +69,23 @@ export default function NotificationsScreen({ navigation }: Props) {
 
   const markAllRead = async () => {
     try {
-      await apiClient.put('/api/user/notifications/all/read');
+      await markAllNotificationsRead();
       setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+      setUnreadCount(0);
     } catch {}
   };
 
   const handlePress = async (item: AppNotification) => {
     if (!item.read) {
       try {
-        await apiClient.put(`/api/user/notifications/${item._id}/read`);
+        await markNotificationRead(item._id);
         setNotifications(prev =>
           prev.map(n => (n._id === item._id ? { ...n, read: true } : n)),
         );
+        setUnreadCount(prev => Math.max(0, prev - 1));
       } catch {}
     }
   };
-
-  const unreadCount = notifications.filter(n => !n.read).length;
 
   const formatDate = (dateStr?: string) => {
     if (!dateStr) return '';
@@ -132,7 +136,7 @@ export default function NotificationsScreen({ navigation }: Props) {
             const type = item.type ?? 'booking';
             const icon = TYPE_ICONS[type] ?? '🔔';
             const color = TYPE_COLORS[type] ?? Colors.primary;
-            const title = item.title ?? item.message ?? 'Notification';
+            const title = item.title ?? 'Notification';
             const body = item.body ?? '';
             return (
               <TouchableOpacity

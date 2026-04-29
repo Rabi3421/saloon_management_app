@@ -11,6 +11,7 @@ import {
   ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import { Colors } from '../../theme/colors';
 import { getBookings, updateBookingStatus, Booking, BookingStatus } from '../../api/bookings';
 
@@ -55,6 +56,12 @@ export default function OwnerBookingsScreen({ navigation }: Props) {
     fetchBookings();
   }, [fetchBookings]);
 
+  useFocusEffect(
+    useCallback(() => {
+      fetchBookings();
+    }, [fetchBookings]),
+  );
+
   const handleStatusChange = (booking: Booking, newStatus: BookingStatus) => {
     const meta = STATUS_META[newStatus];
     Alert.alert(
@@ -84,9 +91,15 @@ export default function OwnerBookingsScreen({ navigation }: Props) {
   const pendingCount = bookings.filter(b => b.status === 'pending').length;
 
   const getServiceName = (b: Booking) =>
-    typeof b.serviceId === 'object' ? (b.serviceId as any).name : 'Service';
+    Array.isArray(b.serviceIds) && b.serviceIds.length > 0
+      ? b.serviceIds
+          .map(service => (typeof service === 'object' ? service.name : 'Service'))
+          .join(', ')
+      : typeof b.serviceId === 'object'
+      ? b.serviceId.name
+      : 'Service';
   const getCustomerName = (b: Booking) =>
-    (b as any).userId?.name || (b as any).customerName || 'Customer';
+    typeof b.customerId === 'object' ? b.customerId?.name || 'Customer' : 'Customer';
 
   const formatDate = (dateStr: string) => {
     if (!dateStr) return '';
@@ -215,6 +228,10 @@ export default function OwnerBookingsScreen({ navigation }: Props) {
                       </Text>
                     </View>
                   </View>
+
+                  {!!item.promotionCode && (
+                    <Text style={styles.offerText}>🎁 Offer used: {item.promotionCode}</Text>
+                  )}
 
                   {/* Action buttons */}
                   {item.status === 'pending' && (
@@ -376,6 +393,7 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
   },
   dateChipText: { fontSize: 12, color: Colors.text, fontWeight: '600' },
+  offerText: { fontSize: 12, color: Colors.primary, fontWeight: '700', marginBottom: 12 },
 
   /* Actions */
   actions: { flexDirection: 'row', gap: 10 },

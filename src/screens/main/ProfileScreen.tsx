@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -6,10 +6,14 @@ import {
   TouchableOpacity,
   ScrollView,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../../theme/colors';
 import { useAuth } from '../../context/AuthContext';
+import { getBookings } from '../../api/bookings';
+import { getMyReviews } from '../../api/reviews';
+import { getFavourites } from '../../api/favourites';
 
 const MENU_ITEMS = [
   { icon: '✏️', label: 'Edit Profile' },
@@ -31,6 +35,27 @@ export default function ProfileScreen({ navigation }: { navigation: any }) {
   const displayEmail = user?.email || '';
   const displayPhone = user?.phone || '';
   const initials = displayName.substring(0, 2).toUpperCase();
+
+  const [stats, setStats] = useState({ bookings: 0, reviews: 0, favourites: 0 });
+  const [statsLoading, setStatsLoading] = useState(true);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const [bookings, reviews, favs] = await Promise.all([
+          getBookings().catch(() => []),
+          getMyReviews().catch(() => []),
+          getFavourites().catch(() => []),
+        ]);
+        setStats({
+          bookings: bookings.length,
+          reviews: reviews.length,
+          favourites: favs.length,
+        });
+      } catch (_) {}
+      finally { setStatsLoading(false); }
+    })();
+  }, []);
 
   const handleLogout = () => {
     Alert.alert('Log Out', 'Are you sure you want to log out?', [
@@ -63,16 +88,20 @@ export default function ProfileScreen({ navigation }: { navigation: any }) {
 
         {/* Stats */}
         <View style={styles.statsRow}>
-          {[
-            { label: 'Bookings', value: '12' },
-            { label: 'Reviews', value: '5' },
-            { label: 'Favourites', value: '8' },
-          ].map(stat => (
-            <View key={stat.label} style={styles.statItem}>
-              <Text style={styles.statValue}>{stat.value}</Text>
-              <Text style={styles.statLabel}>{stat.label}</Text>
-            </View>
-          ))}
+          {statsLoading ? (
+            <ActivityIndicator color={Colors.primary} />
+          ) : (
+            [
+              { label: 'Bookings',   value: String(stats.bookings) },
+              { label: 'Reviews',    value: String(stats.reviews) },
+              { label: 'Favourites', value: String(stats.favourites) },
+            ].map(stat => (
+              <View key={stat.label} style={styles.statItem}>
+                <Text style={styles.statValue}>{stat.value}</Text>
+                <Text style={styles.statLabel}>{stat.label}</Text>
+              </View>
+            ))
+          )}
         </View>
 
         {/* Menu */}

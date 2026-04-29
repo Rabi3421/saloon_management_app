@@ -17,7 +17,8 @@ export async function getMyReviews(): Promise<Review[]> {
 
 export async function getPublicReviews(limit = 10, page = 1): Promise<Review[]> {
   const res = await apiClient.get('/api/public/reviews', { params: { limit, page } });
-  return res.data.data || [];
+  const data = res.data.data ?? res.data ?? [];
+  return Array.isArray(data) ? data : data.reviews ?? [];
 }
 
 export async function submitReview(

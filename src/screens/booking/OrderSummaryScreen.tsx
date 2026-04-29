@@ -8,7 +8,6 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../../theme/colors';
-import { SALON_STAFF } from '../../data/mockData';
 
 interface Props {
   navigation: any;
@@ -16,17 +15,13 @@ interface Props {
 }
 
 export default function OrderSummaryScreen({ navigation, route }: Props) {
-  const { salon, date, time, staffId } = route.params || {};
-  const staff = SALON_STAFF.find(s => s.id === staffId) || SALON_STAFF[0];
-
-  const services = [
-    { name: 'Hair Cut - Short', duration: '20 min', price: 30 },
-    { name: 'Beard Trim', duration: '15 min', price: 20 },
-  ];
-
-  const subtotal = services.reduce((acc, s) => acc + s.price, 0);
-  const tax = Math.round(subtotal * 0.1);
-  const total = subtotal + tax;
+  const { salon, date, time, staff, service, bookingId, booking, promotion } = route.params || {};
+  const services = service ? [service] : [];
+  const subtotal = booking?.subtotalAmount ?? services.reduce((acc: number, item: any) => acc + Number(item.price || 0), 0);
+  const discount = booking?.discountAmount ?? 0;
+  const tax = 0;
+  const total = booking?.totalAmount ?? Math.max(0, subtotal - discount) + tax;
+  const selectedPromotion = promotion || (typeof booking?.promotionId === 'object' ? booking.promotionId : null);
 
   return (
     <SafeAreaView style={styles.root} edges={['top']}>
@@ -49,7 +44,7 @@ export default function OrderSummaryScreen({ navigation, route }: Props) {
             <Text style={styles.salonAddress} numberOfLines={1}>
               📍 {salon?.address || '8502 Preston Rd. Inglewood, Maine'}
             </Text>
-            <Text style={styles.salonRating}>⭐ {salon?.rating || 4.9} ({salon?.reviews || 76} Reviews)</Text>
+            <Text style={styles.salonRating}>⭐ {salon?.rating || 4.9} ({salon?.reviewCount || 0} Reviews)</Text>
           </View>
         </View>
 
@@ -57,37 +52,44 @@ export default function OrderSummaryScreen({ navigation, route }: Props) {
         <View style={styles.infoCard}>
           <Row icon="📅" label="Date" value={date || 'Monday, Apr 28, 2026'} />
           <Row icon="⏰" label="Time" value={time || '10:00 AM'} />
-          <Row icon="👤" label="Stylist" value={staff.name} />
+          <Row icon="👤" label="Stylist" value={staff?.name || 'Salon Staff'} />
         </View>
 
         {/* Services */}
         <Text style={styles.sectionTitle}>Services</Text>
         <View style={styles.servicesCard}>
-          {services.map((s, i) => (
+          {services.map((s: any, i: number) => (
             <View key={i} style={[styles.serviceRow, i < services.length - 1 && styles.serviceRowBorder]}>
               <View>
                 <Text style={styles.serviceName}>{s.name}</Text>
-                <Text style={styles.serviceDuration}>⏱ {s.duration}</Text>
+                <Text style={styles.serviceDuration}>⏱ {s.duration} min</Text>
               </View>
-              <Text style={styles.servicePrice}>${s.price}</Text>
+              <Text style={styles.servicePrice}>₹{s.price}</Text>
             </View>
           ))}
+          {services.length === 0 && <Text style={styles.notePlaceholder}>No services selected.</Text>}
         </View>
 
         {/* Price breakdown */}
         <View style={styles.priceCard}>
           <View style={styles.priceRow}>
             <Text style={styles.priceLabel}>Subtotal</Text>
-            <Text style={styles.priceValue}>${subtotal}</Text>
+            <Text style={styles.priceValue}>₹{subtotal}</Text>
           </View>
+          {selectedPromotion && discount > 0 && (
+            <View style={styles.priceRow}>
+              <Text style={styles.priceLabel}>{selectedPromotion.title || 'Offer Applied'}</Text>
+              <Text style={[styles.priceValue, { color: Colors.green }]}>-₹{discount}</Text>
+            </View>
+          )}
           <View style={styles.priceRow}>
-            <Text style={styles.priceLabel}>Tax (10%)</Text>
-            <Text style={styles.priceValue}>${tax}</Text>
+            <Text style={styles.priceLabel}>Tax</Text>
+            <Text style={styles.priceValue}>₹{tax}</Text>
           </View>
           <View style={styles.priceDivider} />
           <View style={styles.priceRow}>
             <Text style={styles.totalLabel}>Total</Text>
-            <Text style={styles.totalValue}>${total}</Text>
+            <Text style={styles.totalValue}>₹{total}</Text>
           </View>
         </View>
 
@@ -104,11 +106,11 @@ export default function OrderSummaryScreen({ navigation, route }: Props) {
         <View style={styles.totalRow}>
           <View>
             <Text style={styles.footerLabel}>Total Amount</Text>
-            <Text style={styles.footerTotal}>${total}</Text>
+            <Text style={styles.footerTotal}>₹{total}</Text>
           </View>
           <TouchableOpacity
             style={styles.payBtn}
-            onPress={() => navigation.navigate('Payment', { total, salon, date, time })}>
+            onPress={() => navigation.navigate('Payment', { total, salon, date, time, bookingId, service, staff, booking, promotion: selectedPromotion })}>
             <Text style={styles.payBtnText}>Proceed to Payment</Text>
           </TouchableOpacity>
         </View>

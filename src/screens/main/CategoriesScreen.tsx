@@ -1,36 +1,85 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
+  ActivityIndicator,
   FlatList,
   Modal,
-  Dimensions,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../../theme/colors';
-import { CATEGORIES, SALONS } from '../../data/mockData';
+import { getPublicSalonInfo, getPublicServices, PublicService, SalonInfo } from '../../api/public';
 
-const { height } = Dimensions.get('window');
+const CATEGORY_META: Record<string, { icon: string; bgColor: string }> = {
+  Hair: { icon: '✂️', bgColor: '#FEE2E2' },
+  Shave: { icon: '🪒', bgColor: '#EDE9FE' },
+  Makeup: { icon: '💄', bgColor: '#FFEDD5' },
+  Nail: { icon: '💅', bgColor: '#F3E8FF' },
+  Facial: { icon: '🧖', bgColor: '#DCFCE7' },
+  Massage: { icon: '💆', bgColor: '#FEF9C3' },
+  Spa: { icon: '🛁', bgColor: '#E0F2FE' },
+};
 
 interface Props {
   navigation: any;
-  route: any;
 }
 
-export default function CategoriesScreen({ navigation, route }: Props) {
+export default function CategoriesScreen({ navigation }: Props) {
+  const [salon, setSalon] = useState<SalonInfo | null>(null);
+  const [services, setServices] = useState<PublicService[]>([]);
+  const [loading, setLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [showBottomSheet, setShowBottomSheet] = useState(false);
 
-  const handleCategoryPress = (catName: string) => {
-    setSelectedCategory(catName);
+  useEffect(() => {
+    (async () => {
+      try {
+        const [salonData, servicesData] = await Promise.all([
+          getPublicSalonInfo(),
+          getPublicServices(),
+        ]);
+        setSalon(salonData);
+        setServices(servicesData);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  const categories = useMemo(() => {
+    const seen = new Set<string>();
+    return services
+      .map((service) => service.category)
+      .filter((category) => category && !seen.has(category) && seen.add(category))
+      .map((name, index) => ({
+        id: String(index),
+        name,
+        meta: CATEGORY_META[name] ?? { icon: '💈', bgColor: '#F3F4F6' },
+      }));
+  }, [services]);
+
+  const selectedServices = useMemo(
+    () => services.filter((service) => service.category === selectedCategory),
+    [selectedCategory, services],
+  );
+
+  const handleCategoryPress = (categoryName: string) => {
+    setSelectedCategory(categoryName);
     setShowBottomSheet(true);
   };
 
+  if (loading) {
+    return (
+      <View style={styles.loaderWrap}>
+        <ActivityIndicator color={Colors.primary} size="large" />
+      </View>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.root} edges={['top']}>
-      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
           <Text style={styles.backArrow}>←</Text>
@@ -41,16 +90,15 @@ export default function CategoriesScreen({ navigation, route }: Props) {
 
       <View style={styles.card}>
         <FlatList
-          data={CATEGORIES}
+          data={categories}
           numColumns={4}
-          keyExtractor={item => item.id}
+          keyExtractor={(item) => item.id}
           contentContainerStyle={styles.grid}
+          ListEmptyComponent={<Text style={styles.emptyText}>No categories available yet.</Text>}
           renderItem={({ item }) => (
-            <TouchableOpacity
-              style={styles.catItem}
-              onPress={() => handleCategoryPress(item.name)}>
-              <View style={[styles.catCircle, { backgroundColor: item.bgColor }]}>
-                <Text style={styles.catEmoji}>{item.icon}</Text>
+            <TouchableOpacity style={styles.catItem} onPress={() => handleCategoryPress(item.name)}>
+              <View style={[styles.catCircle, { backgroundColor: item.meta.bgColor }]}>
+                <Text style={styles.catEmoji}>{item.meta.icon}</Text>
               </View>
               <Text style={styles.catName}>{item.name}</Text>
             </TouchableOpacity>
@@ -58,66 +106,44 @@ export default function CategoriesScreen({ navigation, route }: Props) {
         />
       </View>
 
-      {/* Bottom Sheet */}
-      <Modal
-        visible={showBottomSheet}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setShowBottomSheet(false)}>
-        <TouchableOpacity
-          style={styles.overlay}
-          activeOpacity={1}
-          onPress={() => setShowBottomSheet(false)}>
+      <Modal visible={showBottomSheet} transparent animationType="slide" onRequestClose={() => setShowBottomSheet(false)}>
+        <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={() => setShowBottomSheet(false)}>
           <View style={styles.bottomSheet} onStartShouldSetResponder={() => true}>
             <View style={styles.bsHandle} />
             <View style={styles.bsHeader}>
               <View>
                 <Text style={styles.bsTitle}>{selectedCategory}</Text>
-                <Text style={styles.bsSubtitle}>Over 10 Salons</Text>
+                <Text style={styles.bsSubtitle}>{selectedServices.length} service(s) available</Text>
               </View>
               <TouchableOpacity onPress={() => setShowBottomSheet(false)}>
                 <Text style={styles.closeX}>✕</Text>
               </TouchableOpacity>
             </View>
-            <FlatList
-              data={SALONS}
-              keyExtractor={item => item.id}
-              showsVerticalScrollIndicator={false}
-              renderItem={({ item }) => (
-                <TouchableOpacity
-                  style={styles.salonRow}
-                  onPress={() => {
-                    setShowBottomSheet(false);
-                    navigation.navigate('SalonDetail', { salon: item });
-                  }}>
-                  <View style={styles.salonImgPlaceholder}>
-                    <Text style={styles.salonImgEmoji}>💇</Text>
+
+            {salon && selectedServices.length > 0 ? (
+              <TouchableOpacity
+                style={styles.salonRow}
+                onPress={() => {
+                  setShowBottomSheet(false);
+                  navigation.navigate('SalonList', { category: selectedCategory, salon });
+                }}>
+                <View style={styles.salonImgPlaceholder}>
+                  <Text style={styles.salonImgEmoji}>💇</Text>
+                </View>
+                <View style={styles.salonRowInfo}>
+                  <View style={styles.salonNameRow}>
+                    <Text style={styles.salonName}>{salon.name}</Text>
+                    <Text style={styles.salonDist}>{selectedServices.length} items</Text>
                   </View>
-                  <View style={styles.salonRowInfo}>
-                    <View style={styles.salonNameRow}>
-                      <Text style={styles.salonName}>{item.name}</Text>
-                      <Text style={styles.salonDist}>↔ {item.distance}</Text>
-                    </View>
-                    <Text style={styles.salonAddr} numberOfLines={1}>
-                      📍 {item.address}
-                    </Text>
-                    <View style={styles.salonBottomRow}>
-                      <Text style={styles.salonRating}>
-                        ⭐ {item.rating} ({item.reviews})
-                      </Text>
-                      <TouchableOpacity
-                        style={styles.bookBtn}
-                        onPress={() => {
-                          setShowBottomSheet(false);
-                          navigation.navigate('SalonDetail', { salon: item });
-                        }}>
-                        <Text style={styles.bookBtnText}>Book Now</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                </TouchableOpacity>
-              )}
-            />
+                  <Text style={styles.salonAddr} numberOfLines={1}>📍 {salon.address}</Text>
+                  <Text style={styles.servicePreview} numberOfLines={2}>
+                    {selectedServices.map((service) => service.name).join(' • ')}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            ) : (
+              <Text style={styles.emptySheetText}>No services found in this category.</Text>
+            )}
           </View>
         </TouchableOpacity>
       </Modal>
@@ -127,6 +153,7 @@ export default function CategoriesScreen({ navigation, route }: Props) {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: Colors.background },
+  loaderWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.background },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -172,6 +199,7 @@ const styles = StyleSheet.create({
   },
   catEmoji: { fontSize: 28 },
   catName: { fontSize: 11, color: Colors.text, textAlign: 'center' },
+  emptyText: { width: '100%', textAlign: 'center', color: Colors.textSecondary, paddingVertical: 20 },
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.3)',
@@ -182,7 +210,7 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     padding: 16,
-    maxHeight: height * 0.75,
+    minHeight: 220,
   },
   bsHandle: {
     width: 40,
@@ -205,7 +233,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     backgroundColor: Colors.greyLight,
     borderRadius: 12,
-    marginBottom: 10,
     overflow: 'hidden',
   },
   salonImgPlaceholder: {
@@ -220,14 +247,7 @@ const styles = StyleSheet.create({
   salonNameRow: { flexDirection: 'row', justifyContent: 'space-between' },
   salonName: { fontSize: 14, fontWeight: '700', color: Colors.text, flex: 1 },
   salonDist: { fontSize: 11, color: Colors.textSecondary },
-  salonAddr: { fontSize: 11, color: Colors.textSecondary, marginVertical: 2 },
-  salonBottomRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 },
-  salonRating: { fontSize: 12, color: Colors.text },
-  bookBtn: {
-    backgroundColor: Colors.white,
-    borderRadius: 20,
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-  },
-  bookBtnText: { fontSize: 11, color: Colors.primary, fontWeight: '700' },
+  salonAddr: { fontSize: 11, color: Colors.textSecondary, marginBottom: 4 },
+  servicePreview: { fontSize: 12, color: Colors.text },
+  emptySheetText: { color: Colors.textSecondary, textAlign: 'center', paddingVertical: 20 },
 });

@@ -12,12 +12,13 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../../theme/colors';
-import { getConversations, Conversation } from '../../api/messages';
-import { SALON_ID } from '@env';
-import { useNavigation } from '@react-navigation/native';
+import { getOwnerConversations, Conversation } from '../../api/messages';
 
-export default function MessageScreen() {
-  const navigation = useNavigation<any>();
+interface Props {
+  navigation: any;
+}
+
+export default function OwnerMessagesScreen({ navigation }: Props) {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -25,7 +26,7 @@ export default function MessageScreen() {
 
   const fetchConversations = useCallback(async () => {
     try {
-      const data = await getConversations();
+      const data = await getOwnerConversations();
       setConversations(data);
     } catch (err: any) {
       Alert.alert('Error', err.message || 'Failed to load messages');
@@ -39,21 +40,27 @@ export default function MessageScreen() {
     fetchConversations();
   }, [fetchConversations]);
 
-  const filtered = conversations.filter(m => {
-    const name = typeof m.salonId === 'object' ? m.salonId?.name : '';
-    return (name || '').toLowerCase().includes(search.toLowerCase());
-  });
-
-  const getSalonName = (item: Conversation): string => {
-    if (typeof item.salonId === 'object' && item.salonId?.name) return item.salonId.name;
-    return 'Salon';
+  const onRefresh = () => {
+    setRefreshing(true);
+    fetchConversations();
   };
 
-  const getSalonIdStr = (item: Conversation): string => {
-    if (typeof item.salonId === 'object') return item.salonId?._id ?? SALON_ID;
-    if (typeof item.salonId === 'string') return item.salonId;
-    return SALON_ID;
+  const getCustomerName = (c: Conversation): string => {
+    if (typeof c.customerId === 'object' && c.customerId?.name) return c.customerId.name;
+    return 'Customer';
   };
+
+  const getCustomerIdStr = (c: Conversation): string => {
+    if (typeof c.customerId === 'object') return c.customerId?._id ?? '';
+    if (typeof c.customerId === 'string') return c.customerId;
+    return '';
+  };
+
+  const filtered = conversations.filter(c =>
+    getCustomerName(c).toLowerCase().includes(search.toLowerCase()),
+  );
+
+  const getInitial = (c: Conversation) => getCustomerName(c)[0].toUpperCase();
 
   const formatTime = (dateStr?: string) => {
     if (!dateStr) return '';
@@ -63,42 +70,35 @@ export default function MessageScreen() {
       d.getDate() === now.getDate() &&
       d.getMonth() === now.getMonth() &&
       d.getFullYear() === now.getFullYear();
-    if (isToday) return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    if (isToday) {
+      return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
     return d.toLocaleDateString();
   };
 
-  const onRefresh = () => {
-    setRefreshing(true);
-    fetchConversations();
-  };
-
-  const startNewConversation = () => {
-    navigation.navigate('Chat', {
-      conversationId: '',
-      name: 'Salon',
-      salonId: SALON_ID,
-      isNew: true,
-    });
-  };
-
   return (
-    <SafeAreaView style={styles.root}>
-      <View style={styles.headerRow}>
-        <Text style={styles.title}>Messages</Text>
-        <TouchableOpacity style={styles.newBtn} onPress={startNewConversation} activeOpacity={0.8}>
-          <Text style={styles.newBtnText}>+ New</Text>
+    <SafeAreaView style={styles.root} edges={['top']}>
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
+          <Text style={styles.backArrow}>←</Text>
         </TouchableOpacity>
+        <Text style={styles.title}>Messages</Text>
+        <View style={{ width: 36 }} />
       </View>
+
+      {/* Search */}
       <View style={styles.searchBar}>
         <Text style={styles.searchIcon}>🔍</Text>
         <TextInput
           style={styles.searchInput}
-          placeholder="Search messages..."
+          placeholder="Search customers..."
           placeholderTextColor={Colors.grey}
           value={search}
           onChangeText={setSearch}
         />
       </View>
+
       {loading ? (
         <ActivityIndicator style={{ marginTop: 40 }} color={Colors.primary} size="large" />
       ) : (
@@ -118,43 +118,40 @@ export default function MessageScreen() {
             <View style={styles.emptyState}>
               <Text style={styles.emptyIcon}>💬</Text>
               <Text style={styles.emptyTitle}>No conversations yet</Text>
-              <Text style={styles.emptySubtitle}>Tap "+ New" to start a chat with the salon</Text>
+              <Text style={styles.emptySubtitle}>Customer messages will appear here</Text>
             </View>
           }
-          renderItem={({ item }) => {
-            const name = getSalonName(item);
-            return (
-              <TouchableOpacity
-                style={styles.messageRow}
-                onPress={() =>
-                  navigation.navigate('Chat', {
-                    conversationId: item._id,
-                    name,
-                    salonId: getSalonIdStr(item),
-                  })
-                }>
-                <View style={styles.avatar}>
-                  <Text style={styles.avatarText}>{name[0].toUpperCase()}</Text>
+          renderItem={({ item }) => (
+            <TouchableOpacity
+              style={styles.messageRow}
+              onPress={() =>
+                navigation.navigate('OwnerChat', {
+                  conversationId: item._id,
+                  name: getCustomerName(item),
+                  customerId: getCustomerIdStr(item),
+                })
+              }>
+              <View style={[styles.avatar, { backgroundColor: Colors.primary }]}>
+                <Text style={styles.avatarText}>{getInitial(item)}</Text>
+              </View>
+              <View style={styles.messageInfo}>
+                <View style={styles.messageTop}>
+                  <Text style={styles.messageName}>{getCustomerName(item)}</Text>
+                  <Text style={styles.messageTime}>{formatTime(item.lastMessageAt)}</Text>
                 </View>
-                <View style={styles.messageInfo}>
-                  <View style={styles.messageTop}>
-                    <Text style={styles.messageName}>{name}</Text>
-                    <Text style={styles.messageTime}>{formatTime(item.lastMessageAt)}</Text>
-                  </View>
-                  <View style={styles.messageBottom}>
-                    <Text style={styles.messageLast} numberOfLines={1}>
-                      {item.lastMessage || 'No messages yet'}
-                    </Text>
-                    {(item.unreadCount ?? 0) > 0 && (
-                      <View style={styles.unreadBadge}>
-                        <Text style={styles.unreadText}>{item.unreadCount}</Text>
-                      </View>
-                    )}
-                  </View>
+                <View style={styles.messageBottom}>
+                  <Text style={styles.messageLast} numberOfLines={1}>
+                    {item.lastMessage || 'No messages yet'}
+                  </Text>
+                  {(item.unreadCount ?? 0) > 0 && (
+                    <View style={styles.unreadBadge}>
+                      <Text style={styles.unreadText}>{item.unreadCount}</Text>
+                    </View>
+                  )}
                 </View>
-              </TouchableOpacity>
-            );
-          }}
+              </View>
+            </TouchableOpacity>
+          )}
         />
       )}
     </SafeAreaView>
@@ -163,31 +160,41 @@ export default function MessageScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: Colors.background },
-  headerRow: {
+  header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 8,
+    paddingTop: 10,
+    paddingBottom: 10,
+    backgroundColor: Colors.white,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.greyBorder,
   },
-  title: { fontSize: 20, fontWeight: '800', color: Colors.text },
-  newBtn: {
-    backgroundColor: Colors.primary,
-    borderRadius: 20,
-    paddingHorizontal: 14,
-    paddingVertical: 6,
+  backBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: Colors.greyLight,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  newBtnText: { color: Colors.white, fontSize: 13, fontWeight: '700' },
+  backArrow: { fontSize: 18, color: Colors.text },
+  title: { flex: 1, fontSize: 18, fontWeight: '800', color: Colors.text, textAlign: 'center' },
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.white,
     borderRadius: 30,
     marginHorizontal: 16,
+    marginTop: 14,
     paddingHorizontal: 14,
     marginBottom: 12,
     height: 44,
+    elevation: 1,
+    shadowColor: '#000',
+    shadowOpacity: 0.04,
+    shadowRadius: 2,
+    shadowOffset: { width: 0, height: 1 },
   },
   searchIcon: { fontSize: 14, marginRight: 8 },
   searchInput: { flex: 1, fontSize: 14, color: Colors.text },
@@ -195,7 +202,7 @@ const styles = StyleSheet.create({
   emptyState: { alignItems: 'center', marginTop: 60 },
   emptyIcon: { fontSize: 52 },
   emptyTitle: { fontSize: 16, color: Colors.textSecondary, marginTop: 12, fontWeight: '600' },
-  emptySubtitle: { fontSize: 13, color: Colors.grey, marginTop: 6, textAlign: 'center' },
+  emptySubtitle: { fontSize: 13, color: Colors.grey, marginTop: 6 },
   messageRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -213,7 +220,6 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: Colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,

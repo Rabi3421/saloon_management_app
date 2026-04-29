@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Alert, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import { Colors } from '../../theme/colors';
 import { getBookings, updateBookingStatus, Booking } from '../../api/bookings';
 
@@ -19,11 +20,15 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 function getServiceName(b: Booking): string {
+  if (Array.isArray(b.serviceIds) && b.serviceIds.length > 0 && typeof b.serviceIds[0] === 'object') {
+    return b.serviceIds.map(service => typeof service === 'object' ? service.name : 'Service').join(', ');
+  }
   if (typeof b.serviceId === 'object') return b.serviceId.name;
   return 'Service';
 }
 
 function getServicePrice(b: Booking): string {
+  if (typeof b.totalAmount === 'number') return `₹${b.totalAmount}`;
   if (typeof b.serviceId === 'object') return `₹${b.serviceId.price}`;
   return '';
 }
@@ -37,6 +42,7 @@ export default function BookingScreen() {
   const [activeTab, setActiveTab] = useState('All');
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const tabs = ['All', 'Upcoming', 'Completed', 'Cancelled'];
 
   const fetchBookings = useCallback(async () => {
@@ -47,10 +53,16 @@ export default function BookingScreen() {
       Alert.alert('Error', err.message);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }, []);
 
   useEffect(() => { fetchBookings(); }, [fetchBookings]);
+  useFocusEffect(
+    useCallback(() => {
+      fetchBookings();
+    }, [fetchBookings]),
+  );
 
   const handleCancel = async (id: string) => {
     Alert.alert('Cancel Booking', 'Are you sure you want to cancel?', [
@@ -61,7 +73,7 @@ export default function BookingScreen() {
         onPress: async () => {
           try {
             await updateBookingStatus(id, 'cancelled');
-            fetchBookings();
+            setBookings(prev => prev.map(item => item._id === id ? { ...item, status: 'cancelled' } : item));
           } catch (err: any) {
             Alert.alert('Error', err.message);
           }
@@ -98,18 +110,38 @@ export default function BookingScreen() {
           data={filtered}
           keyExtractor={item => item._id}
           contentContainerStyle={styles.list}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={() => {
+                setRefreshing(true);
+                fetchBookings();
+              }}
+              colors={[Colors.primary]}
+              tintColor={Colors.primary}
+            />
+          }
           ListEmptyComponent={<Text style={styles.emptyText}>No bookings found.</Text>}
           renderItem={({ item }) => {
             const statusLabel = STATUS_LABELS[item.status] || item.status;
             const statusColor = STATUS_COLORS[item.status] || Colors.textSecondary;
+            const bookingDate = item.bookingDate
+              ? new Date(item.bookingDate).toLocaleDateString('en-IN', {
+                  day: 'numeric',
+                  month: 'short',
+                  year: 'numeric',
+                })
+              : '';
             return (
               <View style={styles.card}>
                 <View style={styles.cardTop}>
                   <View style={styles.cardEmoji}><Text style={{ fontSize: 28 }}>💇</Text></View>
                   <View style={styles.cardInfo}>
-                    <Text style={styles.cardSalon}>{item.salonName || getStaffName(item) || 'Salon'}</Text>
+                    <Text style={styles.cardSalon}>{item.salonName || 'Salon'}</Text>
                     <Text style={styles.cardService}>{getServiceName(item)}</Text>
-                    <Text style={styles.cardDateTime}>📅 {item.bookingDate} · ⏰ {item.timeSlot}</Text>
+                    <Text style={styles.cardDateTime}>📅 {bookingDate} · ⏰ {item.timeSlot}</Text>
+                    {!!getStaffName(item) && <Text style={styles.cardDateTime}>👤 {getStaffName(item)}</Text>}
+                    {!!item.promotionCode && <Text style={styles.cardDateTime}>🎁 Offer used: {item.promotionCode}</Text>}
                   </View>
                   <View style={[styles.statusBadge, { backgroundColor: statusColor + '20' }]}>
                     <Text style={[styles.statusText, { color: statusColor }]}>{statusLabel}</Text>

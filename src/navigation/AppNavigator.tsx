@@ -1,10 +1,12 @@
-import React from 'react';
+import React, {useState} from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Colors } from '../theme/colors';
 import { AuthProvider, useAuth } from '../context/AuthContext';
+import NotificationBootstrap from '../notifications/NotificationBootstrap';
+import { rootNavigationRef } from './navigationRef';
 
 // Owner screens
 import OwnerDashboardScreen from '../screens/owner/OwnerDashboardScreen';
@@ -12,6 +14,9 @@ import OwnerBookingsScreen from '../screens/owner/OwnerBookingsScreen';
 import OwnerStaffScreen from '../screens/owner/OwnerStaffScreen';
 import OwnerServicesScreen from '../screens/owner/OwnerServicesScreen';
 import OwnerProfileScreen from '../screens/owner/OwnerProfileScreen';
+import OwnerMessagesScreen from '../screens/owner/OwnerMessagesScreen';
+import OwnerChatScreen from '../screens/owner/OwnerChatScreen';
+import OwnerPromotionsScreen from '../screens/owner/OwnerPromotionsScreen';
 
 // Onboarding / Auth
 import OnboardingScreen from '../screens/onboarding/OnboardingScreen';
@@ -98,68 +103,65 @@ function getTabSVG(index: number, focused: boolean) {
   return icons[index] ?? '●';
 }
 
-function TabIcon({ label, emoji, focused }: { label: string; emoji: string; focused: boolean }) {
+const USER_TABS = [
+  { name: 'Home',     label: 'Home',     icon: '🏠' },
+  { name: 'Location', label: 'Location', icon: '📍' },
+  { name: 'Booking',  label: 'Booking',  icon: '📋' },
+  { name: 'Message',  label: 'Message',  icon: '💬' },
+  { name: 'Profile',  label: 'Profile',  icon: '👤' },
+];
+
+function UserCustomTabBar({ state, navigation }: any) {
   return (
-    <View style={styles.tabIconContainer}>
-      <Text style={[styles.tabEmoji, focused && styles.tabEmojiActive]}>{emoji}</Text>
-      <Text style={[styles.tabLabel, focused && styles.tabLabelActive]}>{label}</Text>
+    <View style={tabStyles.wrapper}>
+      <View style={tabStyles.container}>
+        {state.routes.map((route: any, index: number) => {
+          const focused = state.index === index;
+          const tab = USER_TABS[index];
+          return (
+            <TouchableOpacity
+              key={route.key}
+              style={tabStyles.tab}
+              onPress={() => navigation.navigate(route.name)}
+              activeOpacity={0.8}>
+              {focused && <View style={tabStyles.activePill} />}
+              <View style={[tabStyles.iconWrap, focused && tabStyles.iconWrapActive]}>
+                <Text style={[tabStyles.icon, focused && tabStyles.iconActive]}>
+                  {tab?.icon ?? '●'}
+                </Text>
+              </View>
+              <Text style={[tabStyles.label, focused && tabStyles.labelActive]}>
+                {tab?.label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
     </View>
+  );
+}
+
+const MessageStackNav = createNativeStackNavigator();
+
+function MessageStack() {
+  return (
+    <MessageStackNav.Navigator screenOptions={{ headerShown: false }}>
+      <MessageStackNav.Screen name="MessageMain" component={MessageScreen} />
+      <MessageStackNav.Screen name="Chat" component={ChatScreen} />
+    </MessageStackNav.Navigator>
   );
 }
 
 function MainTabs() {
   return (
     <Tab.Navigator
-      screenOptions={{
-        headerShown: false,
-        tabBarStyle: styles.tabBar,
-        tabBarShowLabel: false,
-      }}>
-      <Tab.Screen
-        name="Home"
-        component={HomeStack}
-        options={{
-          tabBarIcon: ({ focused }) => (
-            <TabIcon label="Home" emoji="🏠" focused={focused} />
-          ),
-        }}
-      />
-      <Tab.Screen
-        name="Location"
-        component={LocationScreen}
-        options={{
-          tabBarIcon: ({ focused }) => (
-            <TabIcon label="Location" emoji="📍" focused={focused} />
-          ),
-        }}
-      />
-      <Tab.Screen
-        name="Booking"
-        component={BookingScreen}
-        options={{
-          tabBarIcon: ({ focused }) => (
-            <TabIcon label="Booking" emoji="📋" focused={focused} />
-          ),
-        }}
-      />
-      <Tab.Screen
-        name="Message"
-        component={MessageScreen}
-        options={{
-          tabBarIcon: ({ focused }) => (
-            <TabIcon label="Message" emoji="💬" focused={focused} />
-          ),
-        }}
-      />
-      <Tab.Screen
-        name="Profile"
-        component={ProfileScreenWithNav}
-        options={{
-          tabBarIcon: ({ focused }) => (
-            <TabIcon label="Profile" emoji="👤" focused={focused} />
-          ),
-        }}
-      />
+      tabBar={props => <UserCustomTabBar {...props} />}
+      screenOptions={{ headerShown: false }}>
+      <Tab.Screen name="Home"     component={HomeStack} />
+      <Tab.Screen name="Location" component={LocationScreen} />
+      <Tab.Screen name="Booking"  component={BookingScreen} />
+      <Tab.Screen name="Message"  component={MessageStack} />
+      <Tab.Screen name="Profile"  component={ProfileStack} />
     </Tab.Navigator>
   );
 }
@@ -190,8 +192,28 @@ function HomeStack() {
   );
 }
 
-function ProfileScreenWithNav({ navigation }: any) {
-  return <ProfileScreen navigation={navigation} />;
+const ProfileStackNav = createNativeStackNavigator();
+
+function ProfileStack() {
+  return (
+    <ProfileStackNav.Navigator screenOptions={{ headerShown: false }}>
+      <ProfileStackNav.Screen name="ProfileMain" component={ProfileScreen} />
+      <ProfileStackNav.Screen name="EditProfile" component={EditProfileScreen} />
+      <ProfileStackNav.Screen name="PaymentMethods" component={PaymentMethodsScreen} />
+      <ProfileStackNav.Screen name="AddCard" component={AddCardScreen} />
+      <ProfileStackNav.Screen name="MyReviews" component={MyReviewsScreen} />
+      <ProfileStackNav.Screen name="FavoriteSalons" component={FavoriteSalonsScreen} />
+      <ProfileStackNav.Screen name="Notifications" component={NotificationsScreen} />
+      <ProfileStackNav.Screen name="Language" component={LanguageScreen} />
+      <ProfileStackNav.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} />
+      <ProfileStackNav.Screen name="HelpSupport" component={HelpSupportScreen} />
+      <ProfileStackNav.Screen name="RateReview" component={RateReviewScreen} />
+      <ProfileStackNav.Screen name="AboutUs" component={AboutUsScreen} />
+      <ProfileStackNav.Screen name="SalonDetail" component={SalonDetailScreen} />
+      <ProfileStackNav.Screen name="BookingFlow" component={BookingFlowScreen} />
+      <ProfileStackNav.Screen name="Chat" component={ChatScreen} />
+    </ProfileStackNav.Navigator>
+  );
 }
 
 // ─── Owner Navigator ─────────────────────────────────────────────────────────
@@ -217,7 +239,9 @@ function OwnerApp() {
   return (
     <OwnerStack.Navigator screenOptions={{ headerShown: false }}>
       <OwnerStack.Screen name="OwnerTabs" component={OwnerTabs} />
-      <OwnerStack.Screen name="OwnerMessages" component={MessageScreen} />
+      <OwnerStack.Screen name="OwnerMessages" component={OwnerMessagesScreen} />
+      <OwnerStack.Screen name="OwnerChat" component={OwnerChatScreen} />
+      <OwnerStack.Screen name="OwnerPromotions" component={OwnerPromotionsScreen} />
       <OwnerStack.Screen name="OwnerNotifications" component={NotificationsScreen} />
       <OwnerStack.Screen name="OwnerSalonProfile" component={EditProfileScreen} />
       <OwnerStack.Screen name="Chat" component={ChatScreen} />
@@ -230,10 +254,17 @@ function OwnerApp() {
 }
 
 export default function AppNavigator() {
+  const [navigationReady, setNavigationReady] = useState(false);
+
   return (
     <AuthProvider>
-      <NavigationContainer>
-        <RootNavigator />
+      <NavigationContainer
+        ref={rootNavigationRef}
+        onReady={() => setNavigationReady(true)}>
+        <>
+          <RootNavigator />
+          <NotificationBootstrap navigationReady={navigationReady} />
+        </>
       </NavigationContainer>
     </AuthProvider>
   );
@@ -335,21 +366,4 @@ const tabStyles = StyleSheet.create({
   },
 });
 
-const styles = StyleSheet.create({
-  tabBar: {
-    height: 70,
-    borderTopWidth: 1,
-    borderTopColor: Colors.greyBorder,
-    backgroundColor: Colors.white,
-    elevation: 10,
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: -3 },
-  },
-  tabIconContainer: { alignItems: 'center', justifyContent: 'center', paddingTop: 8 },
-  tabEmoji: { fontSize: 22, opacity: 0.4 },
-  tabEmojiActive: { opacity: 1 },
-  tabLabel: { fontSize: 10, color: Colors.textSecondary, marginTop: 2 },
-  tabLabelActive: { color: Colors.primary, fontWeight: '700' },
-});
+

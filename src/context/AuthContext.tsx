@@ -11,6 +11,7 @@ import {
   LoginPayload,
   RegisterCustomerPayload,
 } from '../api/auth';
+import { unregisterCurrentDevicePushToken } from '../notifications/pushNotifications';
 
 
 interface AuthState {
@@ -79,6 +80,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const logout = useCallback(async () => {
+    try {
+      await unregisterCurrentDevicePushToken();
+    } catch {}
+
     await apiLogout();
     setState({
       isLoading: false,

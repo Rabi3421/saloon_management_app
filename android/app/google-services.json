@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1082088115037",
+    "project_id": "saloon-1c8c0",
+    "storage_bucket": "saloon-1c8c0.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1082088115037:android:2774575786714b9d1ef6b4",
+        "android_client_info": {
+          "package_name": "com.saloon"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAyj0NUenKH71WKT9DdNuULLSNVhTUT27g"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

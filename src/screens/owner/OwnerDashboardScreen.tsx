@@ -95,12 +95,20 @@ export default function OwnerDashboardScreen({ navigation }: Props) {
             <Text style={styles.ownerName}>{firstName}</Text>
             <Text style={styles.todayDate}>{today}</Text>
           </View>
-          <TouchableOpacity
-            style={styles.notifBtn}
-            onPress={() => navigation.navigate('OwnerNotifications')}
-            activeOpacity={0.8}>
-            <Text style={styles.notifIcon}>🔔</Text>
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+            <TouchableOpacity
+              style={styles.notifBtn}
+              onPress={() => navigation.navigate('OwnerMessages')}
+              activeOpacity={0.8}>
+              <Text style={styles.notifIcon}>💬</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.notifBtn}
+              onPress={() => navigation.navigate('OwnerNotifications')}
+              activeOpacity={0.8}>
+              <Text style={styles.notifIcon}>🔔</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {loading ? (
@@ -177,6 +185,7 @@ export default function OwnerDashboardScreen({ navigation }: Props) {
                 { emoji: '📋', label: 'Bookings', sub: 'View & manage', screen: 'OwnerBookingsTab', bg: '#EDE9FF' },
                 { emoji: '👥', label: 'Staff', sub: 'Your team', screen: 'OwnerStaffTab', bg: '#E0F2FE' },
                 { emoji: '✂️', label: 'Services', sub: 'Prices & offers', screen: 'OwnerServicesTab', bg: '#FEF3C7' },
+                { emoji: '🎁', label: 'Promotions', sub: 'Discounts & vouchers', screen: 'OwnerPromotions', bg: '#FCE7F3' },
                 { emoji: '💬', label: 'Messages', sub: 'Chat with customers', screen: 'OwnerMessages', bg: '#DCFCE7' },
               ].map(action => (
                 <TouchableOpacity

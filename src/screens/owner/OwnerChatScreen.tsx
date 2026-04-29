@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -14,13 +14,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../../theme/colors';
 import {
   getConversationThread,
-  sendMessage,
+  sendOwnerMessage,
   sendMessageInThread,
   pollMessages,
   markConversationRead,
   ChatMessage,
 } from '../../api/messages';
-import { SALON_ID } from '@env';
 
 const POLL_INTERVAL_MS = 4000;
 
@@ -29,10 +28,11 @@ interface Props {
   route: any;
 }
 
-export default function ChatScreen({ navigation, route }: Props) {
-  const salonName: string = route?.params?.name || 'Salon';
+export default function OwnerChatScreen({ navigation, route }: Props) {
+  const customerName: string = route?.params?.name || 'Customer';
   const [conversationId, setConversationId] = useState<string>(route?.params?.conversationId || '');
-  const salonId: string = route?.params?.salonId || '';
+  const customerId: string = route?.params?.customerId || '';
+
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
@@ -43,8 +43,6 @@ export default function ChatScreen({ navigation, route }: Props) {
   // Load thread history & mark as read on open
   useEffect(() => {
     if (!conversationId) return;
-    // Skip reload if we already loaded this thread (e.g. after first-send sets conversationId)
-    if (messages.length > 0 && lastMessageAtRef.current) return;
     (async () => {
       try {
         const [thread] = await Promise.all([
@@ -97,7 +95,7 @@ export default function ChatScreen({ navigation, route }: Props) {
     const optimistic: ChatMessage = {
       _id: String(Date.now()),
       text,
-      from: 'user',
+      from: 'salon',
       createdAt: new Date().toISOString(),
     };
     setMessages(prev => [...(Array.isArray(prev) ? prev : []), optimistic]);
@@ -107,21 +105,19 @@ export default function ChatScreen({ navigation, route }: Props) {
         // Existing thread — use the dedicated send-in-thread endpoint
         const sent = await sendMessageInThread(conversationId, text);
         setMessages(prev =>
-          prev.map(m => (m._id === optimistic._id ? { ...sent, from: 'user' as const } : m)),
+          prev.map(m => (m._id === optimistic._id ? { ...sent, from: 'salon' as const } : m)),
         );
         lastMessageAtRef.current = sent.createdAt;
       } else {
         // New conversation — POST /api/messages to start/find thread
-        const targetSalonId = salonId || SALON_ID;
-        const result = await sendMessage(targetSalonId, text);
+        const result = await sendOwnerMessage(customerId, text);
         const msg = result?.message ?? result;
         setMessages(prev =>
-          prev.map(m => (m._id === optimistic._id ? { ...msg, from: 'user' as const } : m)),
+          prev.map(m => (m._id === optimistic._id ? { ...msg, from: 'salon' as const } : m)),
         );
         if (result?.message?.createdAt) {
           lastMessageAtRef.current = result.message.createdAt;
         }
-        // Save conversationId so further sends use the thread endpoint
         const cid =
           result?.conversationId ??
           (typeof result?.conversation === 'object' ? result.conversation?._id : undefined);
@@ -144,16 +140,14 @@ export default function ChatScreen({ navigation, route }: Props) {
         </TouchableOpacity>
         <View style={styles.headerCenter}>
           <View style={styles.headerAvatar}>
-            <Text style={styles.headerAvatarText}>{salonName[0]}</Text>
+            <Text style={styles.headerAvatarText}>{customerName[0].toUpperCase()}</Text>
           </View>
           <View>
-            <Text style={styles.headerName}>{salonName}</Text>
-            <Text style={styles.headerStatus}>🟢 Online</Text>
+            <Text style={styles.headerName}>{customerName}</Text>
+            <Text style={styles.headerStatus}>Customer</Text>
           </View>
         </View>
-        <TouchableOpacity style={styles.callBtn}>
-          <Text style={styles.callIcon}>📞</Text>
-        </TouchableOpacity>
+        <View style={{ width: 36 }} />
       </View>
 
       {/* Messages */}
@@ -163,21 +157,33 @@ export default function ChatScreen({ navigation, route }: Props) {
         keyExtractor={(item, index) => item._id ?? String(index)}
         contentContainerStyle={styles.messagesList}
         showsVerticalScrollIndicator={false}
+        onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
+        ListEmptyComponent={
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyIcon}>💬</Text>
+            <Text style={styles.emptyText}>No messages yet. Start the conversation.</Text>
+          </View>
+        }
         renderItem={({ item }) => {
-          const isUser = item.from === 'user';
+          const isSalon = item.from === 'salon';
           return (
-            <View style={[styles.messageRow, isUser && styles.messageRowUser]}>
-              {!isUser && (
+            <View style={[styles.messageRow, isSalon && styles.messageRowSalon]}>
+              {!isSalon && (
                 <View style={styles.msgAvatar}>
-                  <Text style={styles.msgAvatarText}>{salonName[0]}</Text>
+                  <Text style={styles.msgAvatarText}>{customerName[0].toUpperCase()}</Text>
                 </View>
               )}
-              <View style={[styles.bubble, isUser ? styles.bubbleUser : styles.bubbleSalon]}>
-                <Text style={[styles.bubbleText, isUser && styles.bubbleTextUser]}>
+              <View style={[styles.bubble, isSalon ? styles.bubbleSalon : styles.bubbleCustomer]}>
+                <Text style={[styles.bubbleText, isSalon && styles.bubbleTextSalon]}>
                   {item.text}
                 </Text>
-                <Text style={[styles.bubbleTime, isUser && styles.bubbleTimeUser]}>
-                  {item.createdAt ? new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+                <Text style={[styles.bubbleTime, isSalon && styles.bubbleTimeSalon]}>
+                  {item.createdAt
+                    ? new Date(item.createdAt).toLocaleTimeString([], {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })
+                    : ''}
                 </Text>
               </View>
             </View>
@@ -186,15 +192,11 @@ export default function ChatScreen({ navigation, route }: Props) {
       />
 
       {/* Input */}
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <View style={styles.inputRow}>
-          <TouchableOpacity style={styles.attachBtn}>
-            <Text style={styles.attachIcon}>📎</Text>
-          </TouchableOpacity>
           <TextInput
             style={styles.input}
-            placeholder="Type a message..."
+            placeholder="Type a reply..."
             placeholderTextColor={Colors.grey}
             value={input}
             onChangeText={setInput}
@@ -222,14 +224,14 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   backBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: Colors.greyLight,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  backArrow: { fontSize: 16, color: Colors.black },
+  backArrow: { fontSize: 18, color: Colors.text },
   headerCenter: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 },
   headerAvatar: {
     width: 38,
@@ -241,35 +243,29 @@ const styles = StyleSheet.create({
   },
   headerAvatarText: { color: Colors.white, fontWeight: '700', fontSize: 15 },
   headerName: { fontSize: 15, fontWeight: '700', color: Colors.text },
-  headerStatus: { fontSize: 11, color: Colors.green },
-  callBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: Colors.greyLight,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  callIcon: { fontSize: 16 },
-  messagesList: { paddingHorizontal: 14, paddingVertical: 14, gap: 10 },
-  messageRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8, marginBottom: 8 },
-  messageRowUser: { justifyContent: 'flex-end' },
+  headerStatus: { fontSize: 11, color: Colors.textSecondary },
+  messagesList: { paddingHorizontal: 14, paddingVertical: 14 },
+  emptyState: { alignItems: 'center', marginTop: 60 },
+  emptyIcon: { fontSize: 48 },
+  emptyText: { fontSize: 14, color: Colors.textSecondary, marginTop: 12, textAlign: 'center' },
+  messageRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8, marginBottom: 10 },
+  messageRowSalon: { justifyContent: 'flex-end' },
   msgAvatar: {
     width: 30,
     height: 30,
     borderRadius: 15,
-    backgroundColor: Colors.primary,
+    backgroundColor: Colors.greyLight,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  msgAvatarText: { color: Colors.white, fontSize: 12, fontWeight: '700' },
+  msgAvatarText: { color: Colors.text, fontSize: 12, fontWeight: '700' },
   bubble: {
     maxWidth: '72%',
     borderRadius: 16,
     padding: 10,
     paddingBottom: 6,
   },
-  bubbleSalon: {
+  bubbleCustomer: {
     backgroundColor: Colors.white,
     borderBottomLeftRadius: 4,
     elevation: 1,
@@ -278,14 +274,14 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
     shadowOffset: { width: 0, height: 1 },
   },
-  bubbleUser: {
+  bubbleSalon: {
     backgroundColor: Colors.primary,
     borderBottomRightRadius: 4,
   },
   bubbleText: { fontSize: 14, color: Colors.text, lineHeight: 20 },
-  bubbleTextUser: { color: Colors.white },
+  bubbleTextSalon: { color: Colors.white },
   bubbleTime: { fontSize: 10, color: Colors.grey, marginTop: 4, textAlign: 'right' },
-  bubbleTimeUser: { color: 'rgba(255,255,255,0.65)' },
+  bubbleTimeSalon: { color: 'rgba(255,255,255,0.65)' },
   inputRow: {
     flexDirection: 'row',
     alignItems: 'flex-end',
@@ -296,15 +292,6 @@ const styles = StyleSheet.create({
     borderTopColor: Colors.greyBorder,
     gap: 8,
   },
-  attachBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: Colors.greyLight,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  attachIcon: { fontSize: 16 },
   input: {
     flex: 1,
     backgroundColor: Colors.greyLight,

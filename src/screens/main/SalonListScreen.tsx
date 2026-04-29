@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
   View,
   Text,
   TouchableOpacity,
@@ -11,17 +12,18 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../../theme/colors';
-import { SALONS } from '../../data/mockData';
-
-const { width, height } = Dimensions.get('window');
+import { addFavourite, getFavourites, removeFavourite } from '../../api/favourites';
+import { getPublicSalonInfo, getPublicServices, PublicService, SalonInfo } from '../../api/public';
 
 const SORT_OPTIONS = [
   'Most Popular',
-  'Nearby Salons',
-  'Rating: 4-5 Star',
-  'Rating: 1-3 Star',
-  'Rating',
+  'Price: Low to High',
+  'Price: High to Low',
+  'Shortest Duration',
 ];
+
+const PLACEHOLDER_IMAGE = 'https://images.unsplash.com/photo-1560066984-138dadb4c035?w=400';
+const { width } = Dimensions.get('window');
 
 interface Props {
   navigation: any;
@@ -29,35 +31,87 @@ interface Props {
 }
 
 export default function SalonListScreen({ navigation, route }: Props) {
-  const title = route?.params?.title || route?.params?.category || 'Nearby Salons';
+  const title = route?.params?.title || route?.params?.category || route?.params?.search || 'Salon';
+  const category = route?.params?.category;
+  const search = route?.params?.search;
   const [isGrid, setIsGrid] = useState(false);
   const [showSort, setShowSort] = useState(false);
   const [selectedSort, setSelectedSort] = useState('Most Popular');
   const [favorites, setFavorites] = useState<string[]>([]);
+  const [salon, setSalon] = useState<SalonInfo | null>(route?.params?.salon ?? null);
+  const [services, setServices] = useState<PublicService[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const toggleFav = (id: string) => {
-    setFavorites(prev =>
-      prev.includes(id) ? prev.filter(f => f !== id) : [...prev, id],
-    );
+  const fetchData = useCallback(async () => {
+    try {
+      const [salonData, servicesData, favs] = await Promise.all([
+        salon ? Promise.resolve(salon) : getPublicSalonInfo(),
+        getPublicServices({ category, search }),
+        getFavourites().catch(() => []),
+      ]);
+      setSalon(salonData);
+      setServices(servicesData);
+      setFavorites(favs.map((item) => item.salonId));
+    } finally {
+      setLoading(false);
+    }
+  }, [category, salon, search]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  const toggleFav = async (id: string) => {
+    const isFav = favorites.includes(id);
+    setFavorites((prev) => (isFav ? prev.filter((item) => item !== id) : [...prev, id]));
+    try {
+      if (isFav) await removeFavourite(id);
+      else await addFavourite(id);
+    } catch {
+      setFavorites((prev) => (isFav ? [...prev, id] : prev.filter((item) => item !== id)));
+    }
   };
+
+  const sortedServices = useMemo(() => {
+    const result = [...services];
+    if (selectedSort === 'Price: Low to High') result.sort((a, b) => a.price - b.price);
+    if (selectedSort === 'Price: High to Low') result.sort((a, b) => b.price - a.price);
+    if (selectedSort === 'Shortest Duration') result.sort((a, b) => a.duration - b.duration);
+    return result;
+  }, [selectedSort, services]);
+
+  const salons = useMemo(() => {
+    if (!salon) return [];
+    if ((category || search) && sortedServices.length === 0) return [];
+    return [
+      {
+        ...salon,
+        image: salon.images?.[0] ?? salon.logo ?? PLACEHOLDER_IMAGE,
+        matchedServices: sortedServices,
+      },
+    ];
+  }, [category, salon, search, sortedServices]);
 
   const renderGridItem = ({ item }: any) => (
     <TouchableOpacity
       style={styles.gridCard}
       onPress={() => navigation.navigate('SalonDetail', { salon: item })}>
       <Image source={{ uri: item.image }} style={styles.gridImage} />
-      <TouchableOpacity style={styles.heartGrid} onPress={() => toggleFav(item.id)}>
-        <Text style={styles.heartIcon}>{favorites.includes(item.id) ? '❤️' : '🤍'}</Text>
+      <TouchableOpacity style={styles.heartGrid} onPress={() => toggleFav(item._id)}>
+        <Text style={styles.heartIcon}>{favorites.includes(item._id) ? '❤️' : '🤍'}</Text>
       </TouchableOpacity>
       <View style={styles.gridInfo}>
         <Text style={styles.gridName} numberOfLines={1}>{item.name}</Text>
         <Text style={styles.gridAddr} numberOfLines={1}>📍 {item.address}</Text>
+        <Text style={styles.servicesPreview} numberOfLines={2}>
+          {item.matchedServices.slice(0, 2).map((service: PublicService) => service.name).join(' • ')}
+        </Text>
         <View style={styles.gridBottomRow}>
-          <Text style={styles.gridRating}>⭐ {item.rating}</Text>
+          <Text style={styles.gridRating}>⭐ {item.rating?.toFixed?.(1) ?? item.rating ?? '0'}</Text>
           <TouchableOpacity
             style={styles.bookBtnSmall}
             onPress={() => navigation.navigate('SalonDetail', { salon: item })}>
-            <Text style={styles.bookBtnSmallText}>Book</Text>
+            <Text style={styles.bookBtnSmallText}>Explore</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -70,22 +124,25 @@ export default function SalonListScreen({ navigation, route }: Props) {
       onPress={() => navigation.navigate('SalonDetail', { salon: item })}>
       <View style={{ position: 'relative' }}>
         <Image source={{ uri: item.image }} style={styles.listImage} />
-        <TouchableOpacity style={styles.heartList} onPress={() => toggleFav(item.id)}>
-          <Text style={styles.heartIcon}>{favorites.includes(item.id) ? '❤️' : '🤍'}</Text>
+        <TouchableOpacity style={styles.heartList} onPress={() => toggleFav(item._id)}>
+          <Text style={styles.heartIcon}>{favorites.includes(item._id) ? '❤️' : '🤍'}</Text>
         </TouchableOpacity>
       </View>
       <View style={styles.listInfo}>
         <View style={styles.listNameRow}>
           <Text style={styles.listName}>{item.name}</Text>
-          <Text style={styles.listDist}>↔ {item.distance}</Text>
+          <Text style={styles.listDist}>{item.matchedServices.length} services</Text>
         </View>
         <Text style={styles.listAddr} numberOfLines={1}>📍 {item.address}</Text>
+        <Text style={styles.servicesPreview} numberOfLines={2}>
+          {item.matchedServices.map((service: PublicService) => service.name).join(' • ')}
+        </Text>
         <View style={styles.listBottomRow}>
-          <Text style={styles.listRating}>⭐ {item.rating} ({item.reviews})</Text>
+          <Text style={styles.listRating}>⭐ {item.rating?.toFixed?.(1) ?? item.rating ?? '0'} ({item.reviewCount ?? 0})</Text>
           <TouchableOpacity
             style={styles.bookBtn}
             onPress={() => navigation.navigate('SalonDetail', { salon: item })}>
-            <Text style={styles.bookBtnText}>Book Now</Text>
+            <Text style={styles.bookBtnText}>Explore</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -124,22 +181,26 @@ export default function SalonListScreen({ navigation, route }: Props) {
       </View>
 
       <View style={styles.listContainer}>
-        {isGrid ? (
+        {loading ? (
+          <ActivityIndicator style={{ marginTop: 40 }} color={Colors.primary} size="large" />
+        ) : isGrid ? (
           <FlatList
-            data={SALONS}
-            keyExtractor={item => item.id}
+            data={salons}
+            keyExtractor={item => item._id}
             numColumns={2}
             renderItem={renderGridItem}
             contentContainerStyle={styles.gridContent}
             showsVerticalScrollIndicator={false}
+            ListEmptyComponent={<Text style={styles.emptyText}>No matching salons found.</Text>}
           />
         ) : (
           <FlatList
-            data={SALONS}
-            keyExtractor={item => item.id}
+            data={salons}
+            keyExtractor={item => item._id}
             renderItem={renderListItem}
             contentContainerStyle={styles.listContent}
             showsVerticalScrollIndicator={false}
+            ListEmptyComponent={<Text style={styles.emptyText}>No matching salons found.</Text>}
           />
         )}
       </View>
@@ -271,6 +332,7 @@ const styles = StyleSheet.create({
   listName: { fontSize: 14, fontWeight: '700', color: Colors.text, flex: 1 },
   listDist: { fontSize: 11, color: Colors.textSecondary },
   listAddr: { fontSize: 11, color: Colors.textSecondary, marginVertical: 3 },
+  servicesPreview: { fontSize: 11, color: Colors.text, marginBottom: 4 },
   listBottomRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -380,4 +442,5 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   applyBtnText: { color: Colors.white, fontSize: 16, fontWeight: '700' },
+  emptyText: { textAlign: 'center', color: Colors.textSecondary, marginTop: 40, fontSize: 14 },
 });

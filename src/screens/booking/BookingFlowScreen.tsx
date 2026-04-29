@@ -5,17 +5,15 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  Dimensions,
-  FlatList,
   ActivityIndicator,
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../../theme/colors';
+import { getPublicServices, PublicService } from '../../api/public';
 import { getPublicStaff, StaffMember } from '../../api/staff';
 import { createBooking } from '../../api/bookings';
-
-const { width } = Dimensions.get('window');
+import { getPublicPromotions, Promotion } from '../../api/promotions';
 
 const MONTHS = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -42,30 +40,68 @@ interface Props {
 }
 
 export default function BookingFlowScreen({ navigation, route }: Props) {
-  const { salon, serviceId } = route.params || {};
+  const { salon, serviceId, service, promotionId } = route.params || {};
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth());
   const [selectedDay, setSelectedDay] = useState(now.getDate());
   const [selectedTime, setSelectedTime] = useState('10:00 AM');
   const [selectedStaff, setSelectedStaff] = useState<string>('');
+  const [services, setServices] = useState<PublicService[]>([]);
+  const [selectedServiceId, setSelectedServiceId] = useState<string>(service?._id || serviceId || '');
   const [staffList, setStaffList] = useState<StaffMember[]>([]);
+  const [promotions, setPromotions] = useState<Promotion[]>([]);
+  const [selectedPromotionId, setSelectedPromotionId] = useState<string>(promotionId || '');
   const [loadingStaff, setLoadingStaff] = useState(true);
+  const [loadingServices, setLoadingServices] = useState(true);
+  const [loadingPromotions, setLoadingPromotions] = useState(true);
   const [bookingLoading, setBookingLoading] = useState(false);
 
   useEffect(() => {
     (async () => {
       try {
-        const data = await getPublicStaff();
-        setStaffList(data);
-        if (data.length > 0) setSelectedStaff(data[0]._id);
+        const [staffData, servicesData, promotionsData] = await Promise.all([
+          getPublicStaff(),
+          getPublicServices(),
+          getPublicPromotions(),
+        ]);
+        setStaffList(staffData);
+        setServices(servicesData);
+        setPromotions(promotionsData);
+        if (staffData.length > 0) setSelectedStaff(staffData[0]._id);
+        if (!selectedServiceId && servicesData.length > 0) setSelectedServiceId(servicesData[0]._id);
       } catch {
         // fall back to empty list silently
       } finally {
         setLoadingStaff(false);
+        setLoadingServices(false);
+        setLoadingPromotions(false);
       }
     })();
   }, []);
+
+  const selectedService = services.find(item => item._id === selectedServiceId) || service;
+  const selectedStaffItem = staffList.find(item => item._id === selectedStaff);
+  const selectedPromotion = promotions.find(item => item._id === selectedPromotionId);
+
+  const formatPromotionValue = (promotion: Promotion) => {
+    if (promotion.type === 'percentage') return `${promotion.value}% OFF`;
+    if (promotion.type === 'free_service') return 'FREE SERVICE';
+    if (promotion.type === 'gift_voucher') return `₹${promotion.value} VOUCHER`;
+    return `₹${promotion.value} OFF`;
+  };
+
+  const getPromotionPreview = (promotion: Promotion) => {
+    if (!selectedService) return 'Select a service to validate this offer';
+
+    const eligibleIds = (promotion.appliesToServiceIds || []).map(item => item._id);
+    const applies = eligibleIds.length === 0 || eligibleIds.includes(selectedService._id);
+    if (!applies) return 'Not valid for the currently selected service';
+    if ((promotion.minBookingAmount || 0) > Number(selectedService.price || 0)) {
+      return `Requires minimum booking of ₹${promotion.minBookingAmount}`;
+    }
+    return promotion.description || 'Tap continue to apply this offer to your booking';
+  };
 
   const daysInMonth = getDaysInMonth(year, month);
   const firstDay = getFirstDay(year, month);
@@ -86,20 +122,28 @@ export default function BookingFlowScreen({ navigation, route }: Props) {
   };
 
   const handleContinue = async () => {
+    if (!selectedServiceId) {
+      Alert.alert('Select Service', 'Please choose a service to continue.');
+      return;
+    }
     const bookingDate = `${year}-${String(month + 1).padStart(2, '0')}-${String(selectedDay).padStart(2, '0')}`;
     setBookingLoading(true);
     try {
       const booking = await createBooking({
-        serviceId: serviceId || '',
+        serviceId: selectedServiceId,
         staffId: selectedStaff || undefined,
+        promotionId: selectedPromotionId || undefined,
         bookingDate,
         timeSlot: selectedTime,
       });
       navigation.navigate('OrderSummary', {
+        booking,
         salon,
         date: `${MONTHS[month]} ${selectedDay}, ${year}`,
         time: selectedTime,
-        staffId: selectedStaff,
+        staff: selectedStaffItem,
+        service: selectedService,
+        promotion: typeof booking.promotionId === 'object' ? booking.promotionId : selectedPromotion,
         bookingId: booking._id,
       });
     } catch (err: any) {
@@ -120,6 +164,59 @@ export default function BookingFlowScreen({ navigation, route }: Props) {
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+        <Text style={styles.sectionTitle}>Select Service</Text>
+        {loadingServices ? (
+          <ActivityIndicator color={Colors.primary} style={{ marginBottom: 16 }} />
+        ) : (
+          <View style={styles.servicesList}>
+            {services.map(item => {
+              const selected = item._id === selectedServiceId;
+              return (
+                <TouchableOpacity
+                  key={item._id}
+                  style={[styles.serviceCard, selected && styles.serviceCardSelected]}
+                  onPress={() => setSelectedServiceId(item._id)}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.serviceName}>{item.name}</Text>
+                    <Text style={styles.serviceMeta}>{item.category} · {item.duration} min</Text>
+                  </View>
+                  <View style={{ alignItems: 'flex-end' }}>
+                    <Text style={styles.servicePrice}>₹{item.price}</Text>
+                    {selected && <Text style={styles.serviceSelected}>Selected</Text>}
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        )}
+
+        <Text style={styles.sectionTitle}>Apply Offer</Text>
+        {loadingPromotions ? (
+          <ActivityIndicator color={Colors.primary} style={{ marginBottom: 16 }} />
+        ) : promotions.length === 0 ? (
+          <Text style={styles.promoEmpty}>No active offers available.</Text>
+        ) : (
+          <View style={styles.promoList}>
+            {promotions.map(item => {
+              const selected = item._id === selectedPromotionId;
+              return (
+                <TouchableOpacity
+                  key={item._id}
+                  style={[styles.promoCard, selected && styles.promoCardSelected]}
+                  onPress={() => setSelectedPromotionId(selected ? '' : item._id)}>
+                  <View style={styles.promoTopRow}>
+                    <Text style={styles.promoCode}>{item.code}</Text>
+                    <Text style={styles.promoValue}>{formatPromotionValue(item)}</Text>
+                  </View>
+                  <Text style={styles.promoTitle}>{item.title}</Text>
+                  <Text style={styles.promoDescription}>{getPromotionPreview(item)}</Text>
+                  {selected && <Text style={styles.promoApplied}>Offer selected</Text>}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        )}
+
         {/* Calendar */}
         <View style={styles.card}>
           <View style={styles.calHeader}>
@@ -322,6 +419,37 @@ const styles = StyleSheet.create({
   timeSlotSelected: { backgroundColor: Colors.primary, borderColor: Colors.primary },
   timeSlotText: { fontSize: 13, color: Colors.text },
   timeSlotTextSelected: { color: Colors.white, fontWeight: '700' },
+  servicesList: { gap: 10, marginBottom: 18 },
+  serviceCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.white,
+    borderRadius: 14,
+    padding: 12,
+    borderWidth: 1.5,
+    borderColor: Colors.greyBorder,
+  },
+  serviceCardSelected: { borderColor: Colors.primary, backgroundColor: '#F5F0FF' },
+  serviceName: { fontSize: 14, fontWeight: '700', color: Colors.text },
+  serviceMeta: { fontSize: 12, color: Colors.textSecondary, marginTop: 2 },
+  servicePrice: { fontSize: 14, fontWeight: '800', color: Colors.primary },
+  serviceSelected: { fontSize: 11, color: Colors.primary, marginTop: 2 },
+  promoEmpty: { color: Colors.textSecondary, fontSize: 13, marginBottom: 18 },
+  promoList: { gap: 10, marginBottom: 20 },
+  promoCard: {
+    backgroundColor: Colors.white,
+    borderRadius: 14,
+    padding: 12,
+    borderWidth: 1.5,
+    borderColor: Colors.greyBorder,
+  },
+  promoCardSelected: { borderColor: Colors.primary, backgroundColor: '#F5F0FF' },
+  promoTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  promoCode: { fontSize: 12, fontWeight: '700', color: Colors.primary },
+  promoValue: { fontSize: 12, fontWeight: '800', color: Colors.text },
+  promoTitle: { fontSize: 14, fontWeight: '700', color: Colors.text, marginTop: 6 },
+  promoDescription: { fontSize: 12, color: Colors.textSecondary, marginTop: 4 },
+  promoApplied: { fontSize: 12, color: Colors.green, marginTop: 8, fontWeight: '700' },
   staffList: { gap: 10, marginBottom: 16 },
   staffCard: {
     flexDirection: 'row',
