@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import apiClient from './client';
+import { SALON_ID } from './config';
 
 export interface LoginPayload {
   email: string;
@@ -39,10 +40,15 @@ async function persistAuthData(data: AuthResponse) {
 
 export async function login(payload: LoginPayload): Promise<AuthResponse> {
   console.log('Logging in with', payload);
-  const res = await apiClient.post('/api/auth/login', payload);
+  const res = await apiClient.post('/api/auth/login', payload, {
+    headers: SALON_ID ? { 'X-Salon-ID': SALON_ID } : undefined,
+  });
   console.log('Login response', res.data);
   const data: AuthResponse = res.data.data;
   await persistAuthData(data);
+  if (SALON_ID) {
+    await AsyncStorage.setItem('salon_id', SALON_ID);
+  }
   return data;
 }
 

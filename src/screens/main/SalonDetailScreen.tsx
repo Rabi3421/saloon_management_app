@@ -100,9 +100,16 @@ export default function SalonDetailScreen({ navigation, route }: Props) {
   }, [services]);
 
   const selectedService = services.find((item) => item._id === selectedServiceId) ?? services[0];
-  const galleryImages = salon?.images?.length ? salon.images : PLACEHOLDER_IMAGES;
+  const galleryImages = Array.from(
+    new Set([
+      salon?.coverImage,
+      ...(salon?.images ?? []),
+    ].filter((item): item is string => Boolean(item))),
+  );
   const openingHours = formatHours(salon?.openingHours);
-  const heroImage = galleryImages[0] ?? PLACEHOLDER_IMAGES[0];
+  const heroImage = salon?.coverImage || galleryImages[0] || PLACEHOLDER_IMAGES[0];
+  const featureBanners = (salon?.featureBanners ?? []).filter((banner) => banner.title || banner.image);
+  const displayGallery = galleryImages.length > 0 ? galleryImages : PLACEHOLDER_IMAGES;
 
   const toggleFavourite = async () => {
     if (!salon?._id) return;
@@ -160,6 +167,7 @@ export default function SalonDetailScreen({ navigation, route }: Props) {
             </View>
           </View>
           <Text style={styles.salonAddress}>📍 {salon.address}</Text>
+          {salon.tagline ? <Text style={styles.salonTagline}>{salon.tagline}</Text> : null}
           <View style={styles.salonMeta}>
             <Text style={styles.salonRating}>
               ⭐ {salon.rating?.toFixed?.(1) ?? salon.rating ?? '0'} ({salon.reviewCount ?? reviews.length} Reviews)
@@ -185,6 +193,24 @@ export default function SalonDetailScreen({ navigation, route }: Props) {
                   {salon.about || 'Welcome to our salon. Book services, explore the team, and enjoy a seamless appointment experience.'}
                 </Text>
               </View>
+
+              {featureBanners.length > 0 ? (
+                <View style={styles.section}>
+                  <Text style={styles.sectionTitle}>Salon Highlights</Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.bannerScroll}>
+                    {featureBanners.map((banner, index) => (
+                      <View key={`${banner.title}-${index}`} style={styles.bannerCard}>
+                        {banner.image ? <Image source={{ uri: banner.image }} style={styles.bannerImage} resizeMode="cover" /> : null}
+                        <View style={styles.bannerContent}>
+                          <Text style={styles.bannerTitle}>{banner.title}</Text>
+                          {banner.subtitle ? <Text style={styles.bannerSubtitle}>{banner.subtitle}</Text> : null}
+                          {banner.ctaLabel ? <Text style={styles.bannerCta}>{banner.ctaLabel}</Text> : null}
+                        </View>
+                      </View>
+                    ))}
+                  </ScrollView>
+                </View>
+              ) : null}
 
               <View style={styles.section}>
                 <Text style={styles.sectionTitle}>Our Staff</Text>
@@ -269,7 +295,7 @@ export default function SalonDetailScreen({ navigation, route }: Props) {
 
           {activeTab === 'Gallery' && (
             <FlatList
-              data={galleryImages}
+              data={displayGallery}
               numColumns={2}
               keyExtractor={(item, index) => `${item}-${index}`}
               renderItem={({ item }) => <Image source={{ uri: item }} style={styles.galleryImage} resizeMode="cover" />}
@@ -339,6 +365,7 @@ const styles = StyleSheet.create({
   statusBadge: { borderRadius: 20, paddingHorizontal: 12, paddingVertical: 4 },
   statusText: { fontSize: 12, fontWeight: '700' },
   salonAddress: { fontSize: 12, color: Colors.textSecondary, marginBottom: 6 },
+  salonTagline: { fontSize: 13, color: Colors.primaryDark, fontWeight: '600', marginBottom: 8 },
   salonMeta: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   salonRating: { fontSize: 13, color: Colors.text },
   directionLink: { fontSize: 13, color: Colors.primary, fontWeight: '700' },
@@ -351,6 +378,20 @@ const styles = StyleSheet.create({
   section: { borderBottomWidth: 1, borderBottomColor: Colors.greyBorder, marginBottom: 8, paddingBottom: 10 },
   sectionTitle: { fontSize: 15, fontWeight: '700', color: Colors.text, marginBottom: 10 },
   aboutText: { fontSize: 13, color: Colors.textSecondary, lineHeight: 20 },
+  bannerScroll: { gap: 12, paddingBottom: 6 },
+  bannerCard: {
+    width: width * 0.72,
+    borderRadius: 18,
+    overflow: 'hidden',
+    backgroundColor: '#FAFAFF',
+    borderWidth: 1,
+    borderColor: Colors.greyBorder,
+  },
+  bannerImage: { width: '100%', height: 120, backgroundColor: Colors.greyLight },
+  bannerContent: { padding: 14 },
+  bannerTitle: { fontSize: 14, fontWeight: '800', color: Colors.text },
+  bannerSubtitle: { fontSize: 12, color: Colors.textSecondary, lineHeight: 18, marginTop: 4 },
+  bannerCta: { fontSize: 12, color: Colors.primary, fontWeight: '700', marginTop: 10 },
   staffRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: Colors.greyLight },
   staffAvatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: Colors.primaryLight, alignItems: 'center', justifyContent: 'center', marginRight: 10 },
   staffAvatarText: { color: Colors.white, fontSize: 12, fontWeight: '700' },

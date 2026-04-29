@@ -9,6 +9,7 @@ import {
   Dimensions,
   ActivityIndicator,
   RefreshControl,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../../theme/colors';
@@ -105,6 +106,23 @@ export default function HomeScreen({ navigation }: Props) {
       )
     : [];
 
+  const showcaseImages = React.useMemo(
+    () => Array.from(new Set([
+      salon?.coverImage,
+      salon?.logo,
+      ...(salon?.images ?? []),
+    ].filter((item): item is string => Boolean(item)))).slice(0, 6),
+    [salon],
+  );
+
+  const featureBanners = React.useMemo(
+    () => (salon?.featureBanners ?? []).filter(banner => banner.title || banner.image),
+    [salon],
+  );
+
+  const heroImage = salon?.coverImage || showcaseImages[0] || null;
+  const heroDescription = salon?.tagline || salon?.about || 'Discover trusted services, curated visuals, and offers from your salon.';
+
   const initials = user?.name
     ? user.name.split(' ').map((w: string) => w[0]).slice(0, 2).join('').toUpperCase()
     : 'U';
@@ -187,23 +205,92 @@ export default function HomeScreen({ navigation }: Props) {
           </View>
         )}
 
-        {/* Salon promo banner */}
+        {/* Salon hero */}
         {salon && (
-          <View style={styles.promoBanner}>
-            <View style={styles.promoText}>
-              <Text style={styles.promoTag}>✨ Welcome</Text>
+          <View style={styles.heroCard}>
+            {heroImage ? (
+              <Image source={{ uri: heroImage }} style={styles.heroImage} resizeMode="cover" />
+            ) : (
+              <View style={[styles.heroImage, styles.heroFallback]}>
+                <Text style={styles.heroFallbackIcon}>💆‍♀️</Text>
+              </View>
+            )}
+            <View style={styles.heroOverlay}>
+              <Text style={styles.promoTag}>✨ Welcome to</Text>
               <Text style={styles.promoTitle}>{salon.name}</Text>
-              <Text style={styles.promoSubtitle} numberOfLines={2}>
-                {salon.about ?? salon.address ?? 'Your beauty destination'}
-              </Text>
-              <TouchableOpacity
-                style={styles.exploreBtn}
-                onPress={() => navigation.navigate('SalonDetail', { salon })}>
-                <Text style={styles.exploreBtnText}>Explore</Text>
-              </TouchableOpacity>
+              <Text style={styles.heroTagline} numberOfLines={2}>{heroDescription}</Text>
+              <View style={styles.heroInfoRow}>
+                <View style={styles.heroInfoPill}>
+                  <Text style={styles.heroInfoText}>⭐ {salon.rating?.toFixed?.(1) ?? salon.rating ?? '4.8'}</Text>
+                </View>
+                <View style={styles.heroInfoPill}>
+                  <Text style={styles.heroInfoText}>{services.length} services</Text>
+                </View>
+                <View style={styles.heroInfoPill}>
+                  <Text style={styles.heroInfoText}>{promotions.length} offers</Text>
+                </View>
+              </View>
+              <View style={styles.heroActionsRow}>
+                <TouchableOpacity
+                  style={styles.exploreBtn}
+                  onPress={() => navigation.navigate('SalonDetail', { salon })}>
+                  <Text style={styles.exploreBtnText}>Explore</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.heroSecondaryBtn}
+                  onPress={() => navigation.navigate('BookingFlow', { salon, serviceId: services[0]?._id })}>
+                  <Text style={styles.heroSecondaryBtnText}>Book now</Text>
+                </TouchableOpacity>
+              </View>
             </View>
-            <Text style={styles.promoEmoji}>💆‍♀️</Text>
           </View>
+        )}
+
+        {featureBanners.length > 0 && (
+          <>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Salon Highlights</Text>
+              <Text style={styles.viewAll}>Fresh from the owner</Text>
+            </View>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.bannerScroll}>
+              {featureBanners.map((banner, index) => (
+                <TouchableOpacity
+                  key={`${banner.title}-${index}`}
+                  style={styles.bannerCard}
+                  onPress={() => navigation.navigate('SalonDetail', { salon })}>
+                  {banner.image ? (
+                    <Image source={{ uri: banner.image }} style={styles.bannerImage} resizeMode="cover" />
+                  ) : null}
+                  <View style={styles.bannerContent}>
+                    <Text style={styles.bannerTitle} numberOfLines={1}>{banner.title}</Text>
+                    {banner.subtitle ? (
+                      <Text style={styles.bannerSubtitle} numberOfLines={2}>{banner.subtitle}</Text>
+                    ) : null}
+                    <Text style={styles.bannerAction}>{banner.ctaLabel || 'See more'}</Text>
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </>
+        )}
+
+        {showcaseImages.length > 0 && (
+          <>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Inside the Salon</Text>
+              <Text style={styles.viewAll}>Visual preview</Text>
+            </View>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.galleryScroll}>
+              {showcaseImages.map((image, index) => (
+                <TouchableOpacity
+                  key={`${image}-${index}`}
+                  style={styles.galleryCard}
+                  onPress={() => navigation.navigate('SalonDetail', { salon, initialTab: 'Gallery' })}>
+                  <Image source={{ uri: image }} style={styles.galleryCardImage} resizeMode="cover" />
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </>
         )}
 
         {/* Categories */}
@@ -366,15 +453,73 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     backgroundColor: '#7C3AED',
   },
+  heroCard: {
+    marginHorizontal: 16,
+    marginTop: 16,
+    borderRadius: 24,
+    overflow: 'hidden',
+    minHeight: 250,
+    backgroundColor: Colors.primaryDark,
+  },
+  heroImage: { width: '100%', height: 250 },
+  heroFallback: { alignItems: 'center', justifyContent: 'center' },
+  heroFallbackIcon: { fontSize: 56 },
+  heroOverlay: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    padding: 20,
+    backgroundColor: 'rgba(17, 24, 39, 0.38)',
+  },
   promoText: { flex: 1 },
   promoTag: { fontSize: 13, fontWeight: '700', color: 'rgba(255,255,255,0.8)' },
   promoTitle: { fontSize: 18, fontWeight: '800', color: '#fff', marginTop: 2 },
   promoSubtitle: { fontSize: 12, color: 'rgba(255,255,255,0.75)', marginTop: 4, marginBottom: 12 },
+  heroTagline: { fontSize: 13, color: 'rgba(255,255,255,0.85)', marginTop: 8, lineHeight: 19 },
+  heroInfoRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 14 },
+  heroInfoPill: {
+    backgroundColor: 'rgba(255,255,255,0.16)',
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+  },
+  heroInfoText: { color: Colors.white, fontSize: 12, fontWeight: '700' },
+  heroActionsRow: { flexDirection: 'row', gap: 10, marginTop: 16 },
   exploreBtn: {
     backgroundColor: '#fff', borderRadius: 20, paddingHorizontal: 16, paddingVertical: 7, alignSelf: 'flex-start',
   },
   exploreBtnText: { color: Colors.primary, fontSize: 13, fontWeight: '700' },
+  heroSecondaryBtn: {
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.5)',
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 7,
+    alignSelf: 'flex-start',
+  },
+  heroSecondaryBtnText: { color: Colors.white, fontSize: 13, fontWeight: '700' },
   promoEmoji: { fontSize: 52, marginLeft: 8 },
+  bannerScroll: { paddingHorizontal: 16, gap: 14 },
+  bannerCard: {
+    width: width * 0.76,
+    backgroundColor: Colors.white,
+    borderRadius: 20,
+    overflow: 'hidden',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
+    shadowRadius: 5,
+    shadowOffset: { width: 0, height: 2 },
+  },
+  bannerImage: { width: '100%', height: 140, backgroundColor: Colors.greyLight },
+  bannerContent: { padding: 14 },
+  bannerTitle: { fontSize: 15, fontWeight: '800', color: Colors.text },
+  bannerSubtitle: { fontSize: 12, color: Colors.textSecondary, marginTop: 6, lineHeight: 18 },
+  bannerAction: { fontSize: 12, color: Colors.primary, fontWeight: '800', marginTop: 12 },
+  galleryScroll: { paddingHorizontal: 16, gap: 12 },
+  galleryCard: { width: 152, height: 112, borderRadius: 18, overflow: 'hidden', backgroundColor: Colors.greyLight },
+  galleryCardImage: { width: '100%', height: '100%' },
   sectionHeader: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     paddingHorizontal: 16, marginTop: 22, marginBottom: 12,

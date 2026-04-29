@@ -10,6 +10,24 @@ export function navigateToNotificationTarget(
     return false;
   }
 
+  if (role === 'staff') {
+    if (targetScreen === 'StaffBookings') {
+      rootNavigationRef.navigate('MainApp', {
+        screen: 'StaffTabs',
+        params: {screen: 'StaffBookingsTab'},
+      });
+      return true;
+    }
+
+    if (targetScreen === 'StaffNotifications') {
+      rootNavigationRef.navigate('MainApp', {screen: 'StaffNotifications'});
+      return true;
+    }
+
+    rootNavigationRef.navigate('MainApp');
+    return true;
+  }
+
   if (role === 'owner') {
     if (targetScreen === 'OwnerBookings') {
       rootNavigationRef.navigate('MainApp', {

@@ -11,6 +11,9 @@ export * from './paymentMethods';
 export * from './favourites';
 export * from './notifications';
 export * from './messages';
+export * from './salonProfile';
+export * from './ownerCustomers';
+export * from './appContent';
 export {
 	getOwnerPromotions,
 	getPublicPromotions,

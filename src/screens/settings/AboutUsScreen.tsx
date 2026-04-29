@@ -1,17 +1,32 @@
-import React from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Linking } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Linking, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../../theme/colors';
+import { getPublicAppContent } from '../../api/appContent';
 
 interface Props { navigation: any }
 
 export default function AboutUsScreen({ navigation }: Props) {
-  const socials = [
-    { icon: '🌐', label: 'Website', url: 'https://saloonapp.com' },
-    { icon: '📘', label: 'Facebook', url: 'https://facebook.com' },
-    { icon: '📸', label: 'Instagram', url: 'https://instagram.com' },
-    { icon: '🐦', label: 'Twitter', url: 'https://twitter.com' },
-  ];
+  const [content, setContent] = useState<Awaited<ReturnType<typeof getPublicAppContent>> | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        setContent(await getPublicAppContent());
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  const handleLinkPress = async (url: string) => {
+    if (url === 'app://location') {
+      navigation.navigate('Location');
+      return;
+    }
+    await Linking.openURL(url);
+  };
 
   return (
     <SafeAreaView style={styles.root} edges={['top']}>
@@ -22,59 +37,77 @@ export default function AboutUsScreen({ navigation }: Props) {
         <Text style={styles.headerTitle}>About Us</Text>
         <View style={{ width: 36 }} />
       </View>
+      {loading ? (
+        <View style={styles.loaderWrap}>
+          <ActivityIndicator size="large" color={Colors.primary} />
+        </View>
+      ) : (
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         {/* Logo / Brand */}
         <View style={styles.brandBox}>
           <View style={styles.logoCircle}>
-            <Text style={styles.logoText}>✂️</Text>
+            <Text style={styles.logoText}>{content?.salon.name?.slice(0, 1).toUpperCase() || 'S'}</Text>
           </View>
-          <Text style={styles.appName}>Saloon App</Text>
-          <Text style={styles.version}>Version 1.0.0</Text>
+          <Text style={styles.appName}>{content?.appName}</Text>
+          <Text style={styles.version}>{content?.brandTagline}</Text>
         </View>
 
         {/* About */}
         <View style={styles.card}>
+          <Text style={styles.cardTitle}>{content?.aboutUs.title}</Text>
+          <Text style={styles.cardBody}>
+            {content?.aboutUs.headline}
+          </Text>
+        </View>
+
+        <View style={styles.card}>
           <Text style={styles.cardTitle}>Who We Are</Text>
           <Text style={styles.cardBody}>
-            Saloon App is your go-to platform for discovering and booking premium hair and beauty services near you. We connect clients with the best salons, barbershops, and beauty professionals in your city.
+            {content?.aboutUs.summary}
           </Text>
         </View>
 
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Our Mission</Text>
-          <Text style={styles.cardBody}>
-            Our mission is to simplify the salon booking experience — saving you time and helping local beauty businesses grow through seamless technology.
-          </Text>
+          <Text style={styles.cardBody}>{content?.aboutUs.mission}</Text>
         </View>
+
+        {(content?.aboutUs.values || []).map((value, index) => (
+          <View key={index} style={styles.card}>
+            <Text style={styles.cardTitle}>{value.title}</Text>
+            <Text style={styles.cardBody}>{value.description}</Text>
+          </View>
+        ))}
 
         {/* Stats */}
         <View style={styles.statsRow}>
-          {[['500+', 'Salons'], ['50K+', 'Clients'], ['4.9★', 'Rating']].map(([val, lbl]) => (
-            <View key={lbl} style={styles.statItem}>
-              <Text style={styles.statVal}>{val}</Text>
-              <Text style={styles.statLbl}>{lbl}</Text>
+          {(content?.aboutUs.quickFacts || []).map(({ value, label }) => (
+            <View key={label} style={styles.statItem}>
+              <Text style={styles.statVal}>{value}</Text>
+              <Text style={styles.statLbl}>{label}</Text>
             </View>
           ))}
         </View>
 
         {/* Social Links */}
-        <Text style={styles.sectionLabel}>Follow Us</Text>
+        <Text style={styles.sectionLabel}>Useful Links</Text>
         <View style={styles.socialCard}>
-          {socials.map((s, i) => (
+          {(content?.aboutUs.links || []).map((s, i) => (
             <TouchableOpacity
               key={i}
               style={[styles.socialRow, i > 0 && styles.socialSep]}
-              onPress={() => Linking.openURL(s.url)}>
-              <Text style={styles.socialIcon}>{s.icon}</Text>
+              onPress={() => handleLinkPress(s.url)}>
+              <Text style={styles.socialIcon}>{s.url === 'app://location' ? '📍' : s.url.startsWith('mailto:') ? '📧' : '🌐'}</Text>
               <Text style={styles.socialLabel}>{s.label}</Text>
               <Text style={styles.arrow}>›</Text>
             </TouchableOpacity>
           ))}
         </View>
 
-        <Text style={styles.copyright}>© 2025 Saloon App. All rights reserved.</Text>
+        <Text style={styles.copyright}>{content?.aboutUs.footer}</Text>
         <View style={{ height: 30 }} />
       </ScrollView>
+      )}
     </SafeAreaView>
   );
 }
@@ -92,6 +125,7 @@ const styles = StyleSheet.create({
   },
   backArrow: { fontSize: 18, color: Colors.black },
   headerTitle: { fontSize: 18, fontWeight: '700', color: Colors.black },
+  loaderWrap: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   scroll: { padding: 16 },
   brandBox: { alignItems: 'center', paddingVertical: 24 },
   logoCircle: {

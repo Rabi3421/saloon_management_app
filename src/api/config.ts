@@ -30,4 +30,4 @@ export const BASE_URL: string = resolveBaseUrl(API_BASE_URL);
  * The salon this app instance belongs to.
  * Set once at build time via .env — never changes at runtime.
  */
-export const SALON_ID: string = ENV_SALON_ID;
+export const SALON_ID: string = (ENV_SALON_ID || '').trim();

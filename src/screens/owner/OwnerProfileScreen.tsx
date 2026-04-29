@@ -44,6 +44,7 @@ export default function OwnerProfileScreen({ navigation }: Props) {
 
   const menuItems = [
     { icon: '🏪', label: 'Salon Profile', action: () => go('OwnerSalonProfile') },
+    { icon: '🧑‍🤝‍🧑', label: 'Customers', action: () => go('OwnerCustomers') },
     { icon: '💬', label: 'Messages', action: () => go('OwnerMessages') },
     { icon: '🔔', label: 'Notifications', action: () => go('OwnerNotifications') },
     { icon: '🔒', label: 'Change Password', action: () => Alert.alert('Coming Soon', 'Change password coming soon') },

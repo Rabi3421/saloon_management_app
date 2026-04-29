@@ -1,42 +1,25 @@
-import React from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../../theme/colors';
-
-const SECTIONS = [
-  {
-    title: '1. Information We Collect',
-    body: 'We collect information you provide directly to us, such as when you create an account, make a booking, or contact us for support. This includes name, email address, phone number, and payment information.',
-  },
-  {
-    title: '2. How We Use Your Information',
-    body: 'We use your information to provide, maintain, and improve our services, process transactions, send you technical notices and support messages, and respond to your comments and questions.',
-  },
-  {
-    title: '3. Information Sharing',
-    body: 'We do not share your personal information with third parties except as described in this policy. We may share your information with service providers who assist us in providing the app.',
-  },
-  {
-    title: '4. Data Security',
-    body: 'We take reasonable measures to protect your personal information from unauthorized access, use, or disclosure. However, no security system is impenetrable and we cannot guarantee the security of your data.',
-  },
-  {
-    title: '5. Cookies and Tracking',
-    body: 'We may use cookies and similar tracking technologies to track activity within our app and hold certain information to improve your experience.',
-  },
-  {
-    title: '6. Your Rights',
-    body: 'You have the right to access, update, or delete your personal information at any time. You may also opt out of receiving promotional communications from us.',
-  },
-  {
-    title: '7. Contact Us',
-    body: 'If you have any questions about this Privacy Policy, please contact us at privacy@saloonapp.com.',
-  },
-];
+import { getPublicAppContent } from '../../api/appContent';
 
 interface Props { navigation: any }
 
 export default function PrivacyPolicyScreen({ navigation }: Props) {
+  const [content, setContent] = useState<Awaited<ReturnType<typeof getPublicAppContent>> | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        setContent(await getPublicAppContent());
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
   return (
     <SafeAreaView style={styles.root} edges={['top']}>
       <View style={styles.header}>
@@ -46,19 +29,25 @@ export default function PrivacyPolicyScreen({ navigation }: Props) {
         <Text style={styles.headerTitle}>Privacy Policy</Text>
         <View style={{ width: 36 }} />
       </View>
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-        <Text style={styles.lastUpdated}>Last updated: January 2025</Text>
-        <Text style={styles.intro}>
-          Your privacy is important to us. This Privacy Policy explains how Saloon App collects, uses, and protects your personal information when you use our application.
-        </Text>
-        {SECTIONS.map((s, i) => (
-          <View key={i} style={styles.section}>
-            <Text style={styles.sectionTitle}>{s.title}</Text>
-            <Text style={styles.sectionBody}>{s.body}</Text>
-          </View>
-        ))}
-        <View style={{ height: 30 }} />
-      </ScrollView>
+      {loading ? (
+        <View style={styles.loaderWrap}>
+          <ActivityIndicator size="large" color={Colors.primary} />
+        </View>
+      ) : (
+        <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+          <Text style={styles.lastUpdated}>Last updated: {content?.privacyPolicy.lastUpdated || 'Recently'}</Text>
+          <Text style={styles.intro}>
+            {content?.privacyPolicy.intro || 'Privacy details are temporarily unavailable.'}
+          </Text>
+          {(content?.privacyPolicy.sections || []).map((s, i) => (
+            <View key={i} style={styles.section}>
+              <Text style={styles.sectionTitle}>{s.title}</Text>
+              <Text style={styles.sectionBody}>{s.body}</Text>
+            </View>
+          ))}
+          <View style={{ height: 30 }} />
+        </ScrollView>
+      )}
     </SafeAreaView>
   );
 }
@@ -76,6 +65,7 @@ const styles = StyleSheet.create({
   },
   backArrow: { fontSize: 18, color: Colors.black },
   headerTitle: { fontSize: 18, fontWeight: '700', color: Colors.black },
+  loaderWrap: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   scroll: { padding: 16 },
   lastUpdated: { fontSize: 12, color: Colors.textSecondary, marginBottom: 12 },
   intro: { fontSize: 14, color: Colors.text, lineHeight: 22, marginBottom: 20 },

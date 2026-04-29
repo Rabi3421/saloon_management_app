@@ -3,18 +3,35 @@ import apiClient from './client';
 export interface SalonInfo {
   _id: string;
   name: string;
+  ownerName?: string;
   phone?: string;
   address?: string;
   email?: string;
   website?: string;
   about?: string;
+  tagline?: string;
   plan?: string;
   isActive?: boolean;
   rating?: number;
   reviewCount?: number;
   images?: string[];
   logo?: string;
+  coverImage?: string;
+  location?: SalonLocation;
+  featureBanners?: SalonFeatureBanner[];
   openingHours?: { day: string; start: string; end: string; closed?: boolean }[];
+}
+
+export interface SalonLocation {
+  latitude: number;
+  longitude: number;
+}
+
+export interface SalonFeatureBanner {
+  title: string;
+  subtitle?: string;
+  image: string;
+  ctaLabel?: string;
 }
 
 export interface PublicService {

@@ -21,7 +21,7 @@ const MENU_ITEMS = [
   { icon: '⭐', label: 'My Reviews' },
   { icon: '❤️', label: 'Favourites' },
   { icon: '🔔', label: 'Notifications' },
-  { icon: '🌐', label: 'Language' },
+  // { icon: '🌐', label: 'Language' },
   { icon: '🔒', label: 'Privacy Policy' },
   { icon: '❓', label: 'Help & Support' },
   { icon: '⭐', label: 'Rate the App' },
@@ -117,7 +117,7 @@ export default function ProfileScreen({ navigation }: { navigation: any }) {
                 else if (item.label === 'My Reviews') { navigation.navigate('MyReviews'); }
                 else if (item.label === 'Favourites') { navigation.navigate('FavoriteSalons'); }
                 else if (item.label === 'Notifications') { navigation.navigate('Notifications'); }
-                else if (item.label === 'Language') { navigation.navigate('Language'); }
+                // else if (item.label === 'Language') { navigation.navigate('Language'); }
                 else if (item.label === 'Privacy Policy') { navigation.navigate('PrivacyPolicy'); }
                 else if (item.label === 'Help & Support') { navigation.navigate('HelpSupport'); }
                 else if (item.label === 'Rate the App') { navigation.navigate('RateReview'); }

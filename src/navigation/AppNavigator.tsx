@@ -17,6 +17,12 @@ import OwnerProfileScreen from '../screens/owner/OwnerProfileScreen';
 import OwnerMessagesScreen from '../screens/owner/OwnerMessagesScreen';
 import OwnerChatScreen from '../screens/owner/OwnerChatScreen';
 import OwnerPromotionsScreen from '../screens/owner/OwnerPromotionsScreen';
+import OwnerSalonProfileScreen from '../screens/owner/OwnerSalonProfileScreen';
+import OwnerCustomersScreen from '../screens/owner/OwnerCustomersScreen';
+import StaffDashboardScreen from '../screens/staff/StaffDashboardScreen';
+import StaffBookingsScreen from '../screens/staff/StaffBookingsScreen';
+import StaffServicesScreen from '../screens/staff/StaffServicesScreen';
+import StaffProfileScreen from '../screens/staff/StaffProfileScreen';
 
 // Onboarding / Auth
 import OnboardingScreen from '../screens/onboarding/OnboardingScreen';
@@ -68,6 +74,13 @@ const OWNER_TABS = [
   { name: 'OwnerProfileTab',   label: 'Profile',  icon: '◎' },
 ];
 
+const STAFF_TABS = [
+  { name: 'StaffDashboardTab', label: 'Home', icon: '🏠' },
+  { name: 'StaffBookingsTab', label: 'Bookings', icon: '📋' },
+  { name: 'StaffServicesTab', label: 'Services', icon: '✂️' },
+  { name: 'StaffProfileTab', label: 'Profile', icon: '👤' },
+];
+
 function OwnerCustomTabBar({ state, navigation }: any) {
   return (
     <View style={tabStyles.wrapper}>
@@ -85,6 +98,36 @@ function OwnerCustomTabBar({ state, navigation }: any) {
               <View style={[tabStyles.iconWrap, focused && tabStyles.iconWrapActive]}>
                 <Text style={[tabStyles.icon, focused && tabStyles.iconActive]}>
                   {getTabSVG(index, focused)}
+                </Text>
+              </View>
+              <Text style={[tabStyles.label, focused && tabStyles.labelActive]}>
+                {tab.label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
+function StaffCustomTabBar({ state, navigation }: any) {
+  return (
+    <View style={tabStyles.wrapper}>
+      <View style={tabStyles.container}>
+        {state.routes.map((route: any, index: number) => {
+          const focused = state.index === index;
+          const tab = STAFF_TABS[index];
+          return (
+            <TouchableOpacity
+              key={route.key}
+              style={tabStyles.tab}
+              onPress={() => navigation.navigate(route.name)}
+              activeOpacity={0.8}>
+              {focused && <View style={tabStyles.activePill} />}
+              <View style={[tabStyles.iconWrap, focused && tabStyles.iconWrapActive]}>
+                <Text style={[tabStyles.icon, focused && tabStyles.iconActive]}>
+                  {tab.icon}
                 </Text>
               </View>
               <Text style={[tabStyles.label, focused && tabStyles.labelActive]}>
@@ -220,6 +263,8 @@ function ProfileStack() {
 
 const OwnerStack = createNativeStackNavigator();
 const OwnerTab = createBottomTabNavigator();
+const StaffStack = createNativeStackNavigator();
+const StaffTab = createBottomTabNavigator();
 
 function OwnerTabs() {
   return (
@@ -242,14 +287,40 @@ function OwnerApp() {
       <OwnerStack.Screen name="OwnerMessages" component={OwnerMessagesScreen} />
       <OwnerStack.Screen name="OwnerChat" component={OwnerChatScreen} />
       <OwnerStack.Screen name="OwnerPromotions" component={OwnerPromotionsScreen} />
+      <OwnerStack.Screen name="OwnerCustomers" component={OwnerCustomersScreen} />
       <OwnerStack.Screen name="OwnerNotifications" component={NotificationsScreen} />
-      <OwnerStack.Screen name="OwnerSalonProfile" component={EditProfileScreen} />
+      <OwnerStack.Screen name="OwnerSalonProfile" component={OwnerSalonProfileScreen} />
       <OwnerStack.Screen name="Chat" component={ChatScreen} />
       <OwnerStack.Screen name="EditProfile" component={EditProfileScreen} />
       <OwnerStack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} />
       <OwnerStack.Screen name="HelpSupport" component={HelpSupportScreen} />
       <OwnerStack.Screen name="AboutUs" component={AboutUsScreen} />
     </OwnerStack.Navigator>
+  );
+}
+
+function StaffTabs() {
+  return (
+    <StaffTab.Navigator
+      tabBar={props => <StaffCustomTabBar {...props} />}
+      screenOptions={{ headerShown: false }}>
+      <StaffTab.Screen name="StaffDashboardTab" component={StaffDashboardScreen} />
+      <StaffTab.Screen name="StaffBookingsTab" component={StaffBookingsScreen} />
+      <StaffTab.Screen name="StaffServicesTab" component={StaffServicesScreen} />
+      <StaffTab.Screen name="StaffProfileTab" component={StaffProfileScreen} />
+    </StaffTab.Navigator>
+  );
+}
+
+function StaffApp() {
+  return (
+    <StaffStack.Navigator screenOptions={{ headerShown: false }}>
+      <StaffStack.Screen name="StaffTabs" component={StaffTabs} />
+      <StaffStack.Screen name="StaffNotifications" component={NotificationsScreen} />
+      <StaffStack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} />
+      <StaffStack.Screen name="HelpSupport" component={HelpSupportScreen} />
+      <StaffStack.Screen name="AboutUs" component={AboutUsScreen} />
+    </StaffStack.Navigator>
   );
 }
 
@@ -282,6 +353,7 @@ function RootNavigator() {
   }
 
   const isOwner = user?.role === 'owner';
+  const isStaff = user?.role === 'staff';
 
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }} initialRouteName={isAuthenticated ? 'MainApp' : 'Onboarding'}>
@@ -296,6 +368,8 @@ function RootNavigator() {
         </>
       ) : isOwner ? (
         <Stack.Screen name="MainApp" component={OwnerApp} />
+      ) : isStaff ? (
+        <Stack.Screen name="MainApp" component={StaffApp} />
       ) : (
         <Stack.Screen name="MainApp" component={MainTabs} />
       )}

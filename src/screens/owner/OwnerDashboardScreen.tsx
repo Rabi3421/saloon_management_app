@@ -184,6 +184,7 @@ export default function OwnerDashboardScreen({ navigation }: Props) {
               {[
                 { emoji: '📋', label: 'Bookings', sub: 'View & manage', screen: 'OwnerBookingsTab', bg: '#EDE9FF' },
                 { emoji: '👥', label: 'Staff', sub: 'Your team', screen: 'OwnerStaffTab', bg: '#E0F2FE' },
+                { emoji: '🧑‍🤝‍🧑', label: 'Customers', sub: 'Salon user data', screen: 'OwnerCustomers', bg: '#DCFCE7' },
                 { emoji: '✂️', label: 'Services', sub: 'Prices & offers', screen: 'OwnerServicesTab', bg: '#FEF3C7' },
                 { emoji: '🎁', label: 'Promotions', sub: 'Discounts & vouchers', screen: 'OwnerPromotions', bg: '#FCE7F3' },
                 { emoji: '💬', label: 'Messages', sub: 'Chat with customers', screen: 'OwnerMessages', bg: '#DCFCE7' },

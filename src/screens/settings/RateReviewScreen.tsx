@@ -1,46 +1,55 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet, TextInput, ScrollView, Alert,
+  View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert, Linking, Platform, ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../../theme/colors';
+import { getPublicAppContent } from '../../api/appContent';
 
 interface Props { navigation: any; route: any }
 
 export default function RateReviewScreen({ navigation, route }: Props) {
-  const salon = route?.params?.salon || { name: 'Luxury Cuts & Style', address: '123 Style Street' };
-  const [rating, setRating] = useState(0);
-  const [review, setReview] = useState('');
-  const [submitted, setSubmitted] = useState(false);
+  const [content, setContent] = useState<Awaited<ReturnType<typeof getPublicAppContent>> | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const labels = ['', 'Terrible', 'Bad', 'Okay', 'Good', 'Excellent'];
+  useEffect(() => {
+    (async () => {
+      try {
+        setContent(await getPublicAppContent());
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
 
-  const submit = () => {
-    if (rating === 0) { Alert.alert('Please select a rating'); return; }
-    setSubmitted(true);
+  const openRateUrl = async () => {
+    const primaryUrl = Platform.OS === 'ios'
+      ? content?.rateApp.iosUrl || content?.rateApp.webFallbackUrl
+      : content?.rateApp.androidUrl;
+    const fallbackUrl = Platform.OS === 'android'
+      ? content?.rateApp.androidWebUrl || content?.rateApp.webFallbackUrl
+      : content?.rateApp.webFallbackUrl;
+
+    if (!primaryUrl && !fallbackUrl) {
+      Alert.alert('Unavailable', 'No rating link is configured yet.');
+      return;
+    }
+
+    try {
+      await Linking.openURL(primaryUrl || fallbackUrl || '');
+    } catch {
+      if (fallbackUrl) {
+        await Linking.openURL(fallbackUrl);
+      } else {
+        Alert.alert('Unavailable', 'We could not open the rating page right now.');
+      }
+    }
   };
 
-  if (submitted) {
-    return (
-      <SafeAreaView style={styles.root} edges={['top']}>
-        <View style={styles.header}>
-          <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-            <Text style={styles.backArrow}>←</Text>
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Rate & Review</Text>
-          <View style={{ width: 36 }} />
-        </View>
-        <View style={styles.successContainer}>
-          <Text style={styles.successIcon}>🎉</Text>
-          <Text style={styles.successTitle}>Thank You!</Text>
-          <Text style={styles.successSub}>Your review has been submitted successfully.</Text>
-          <TouchableOpacity style={styles.doneBtn} onPress={() => navigation.goBack()}>
-            <Text style={styles.doneBtnText}>Done</Text>
-          </TouchableOpacity>
-        </View>
-      </SafeAreaView>
-    );
-  }
+  const openFeedbackEmail = async () => {
+    if (!content?.rateApp.feedbackEmail) return;
+    await Linking.openURL(`mailto:${content.rateApp.feedbackEmail}`);
+  };
 
   return (
     <SafeAreaView style={styles.root} edges={['top']}>
@@ -48,47 +57,46 @@ export default function RateReviewScreen({ navigation, route }: Props) {
         <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
           <Text style={styles.backArrow}>←</Text>
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Rate & Review</Text>
+        <Text style={styles.headerTitle}>Rate the App</Text>
         <View style={{ width: 36 }} />
       </View>
-      <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-        <View style={styles.salonCard}>
-          <Text style={styles.salonIcon}>✂️</Text>
-          <View>
-            <Text style={styles.salonName}>{salon.name}</Text>
-            <Text style={styles.salonAddress}>{salon.address}</Text>
+      {loading ? (
+        <View style={styles.loaderWrap}>
+          <ActivityIndicator size="large" color={Colors.primary} />
+        </View>
+      ) : (
+        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+          <View style={styles.salonCard}>
+            <Text style={styles.salonIcon}>⭐</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.salonName}>{content?.rateApp.subtitle}</Text>
+              <Text style={styles.salonAddress}>{content?.rateApp.description}</Text>
+            </View>
           </View>
-        </View>
 
-        <Text style={styles.rateLabel}>How was your experience?</Text>
-        <View style={styles.starsRow}>
-          {[1, 2, 3, 4, 5].map(s => (
-            <TouchableOpacity key={s} onPress={() => setRating(s)}>
-              <Text style={[styles.star, s <= rating && styles.starActive]}>★</Text>
-            </TouchableOpacity>
+          <Text style={styles.rateLabel}>{content?.rateApp.title}</Text>
+          <View style={styles.starsRow}>
+            {[1, 2, 3, 4, 5].map(s => (
+              <Text key={s} style={[styles.star, styles.starActive]}>★</Text>
+            ))}
+          </View>
+
+          {(content?.rateApp.highlights || []).map((item, index) => (
+            <View key={index} style={styles.highlightRow}>
+              <Text style={styles.highlightBullet}>•</Text>
+              <Text style={styles.highlightText}>{item}</Text>
+            </View>
           ))}
-        </View>
-        {rating > 0 && (
-          <Text style={styles.ratingLabel}>{labels[rating]}</Text>
-        )}
 
-        <Text style={styles.fieldLabel}>Your Review (optional)</Text>
-        <TextInput
-          style={styles.textArea}
-          placeholder="Share details about your experience..."
-          placeholderTextColor={Colors.grey}
-          value={review}
-          onChangeText={setReview}
-          multiline
-          numberOfLines={5}
-          textAlignVertical="top"
-        />
-
-        <TouchableOpacity style={styles.submitBtn} onPress={submit}>
-          <Text style={styles.submitBtnText}>Submit Review</Text>
-        </TouchableOpacity>
-        <View style={{ height: 30 }} />
-      </ScrollView>
+          <TouchableOpacity style={styles.submitBtn} onPress={openRateUrl}>
+            <Text style={styles.submitBtnText}>{content?.rateApp.primaryLabel}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.secondaryBtn} onPress={openFeedbackEmail}>
+            <Text style={styles.secondaryBtnText}>{content?.rateApp.secondaryLabel}</Text>
+          </TouchableOpacity>
+          <View style={{ height: 30 }} />
+        </ScrollView>
+      )}
     </SafeAreaView>
   );
 }
@@ -106,6 +114,7 @@ const styles = StyleSheet.create({
   },
   backArrow: { fontSize: 18, color: Colors.black },
   headerTitle: { fontSize: 18, fontWeight: '700', color: Colors.black },
+  loaderWrap: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   scroll: { padding: 16 },
   salonCard: {
     backgroundColor: Colors.white, borderRadius: 14, padding: 14, flexDirection: 'row',
@@ -119,23 +128,21 @@ const styles = StyleSheet.create({
   starsRow: { flexDirection: 'row', justifyContent: 'center', gap: 8, marginBottom: 8 },
   star: { fontSize: 42, color: Colors.greyBorder },
   starActive: { color: Colors.star },
-  ratingLabel: { textAlign: 'center', fontSize: 14, fontWeight: '600', color: Colors.primary, marginBottom: 16 },
-  fieldLabel: { fontSize: 13, fontWeight: '600', color: Colors.text, marginBottom: 8, marginTop: 8 },
-  textArea: {
-    backgroundColor: Colors.white, borderRadius: 12, borderWidth: 1, borderColor: Colors.greyBorder,
-    padding: 12, fontSize: 14, color: Colors.text, minHeight: 120,
-  },
+  highlightRow: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 10 },
+  highlightBullet: { fontSize: 16, color: Colors.primary, marginRight: 8, lineHeight: 20 },
+  highlightText: { flex: 1, fontSize: 14, color: Colors.textSecondary, lineHeight: 20 },
   submitBtn: {
     backgroundColor: Colors.primary, borderRadius: 30, paddingVertical: 14,
     alignItems: 'center', marginTop: 24,
   },
   submitBtnText: { color: Colors.white, fontWeight: '700', fontSize: 15 },
-  successContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 40 },
-  successIcon: { fontSize: 70, marginBottom: 20 },
-  successTitle: { fontSize: 24, fontWeight: '800', color: Colors.black, marginBottom: 10 },
-  successSub: { fontSize: 14, color: Colors.textSecondary, textAlign: 'center', marginBottom: 30 },
-  doneBtn: {
-    backgroundColor: Colors.primary, borderRadius: 30, paddingVertical: 12, paddingHorizontal: 40,
+  secondaryBtn: {
+    borderWidth: 1.5,
+    borderColor: Colors.primary,
+    borderRadius: 30,
+    paddingVertical: 14,
+    alignItems: 'center',
+    marginTop: 12,
   },
-  doneBtnText: { color: Colors.white, fontWeight: '700', fontSize: 15 },
+  secondaryBtnText: { color: Colors.primary, fontWeight: '700', fontSize: 15 },
 });

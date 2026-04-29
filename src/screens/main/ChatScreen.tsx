@@ -9,6 +9,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../../theme/colors';
@@ -20,6 +21,7 @@ import {
   markConversationRead,
   ChatMessage,
 } from '../../api/messages';
+import { getPublicSalonInfo } from '../../api/public';
 import { SALON_ID } from '@env';
 
 const POLL_INTERVAL_MS = 4000;
@@ -33,6 +35,7 @@ export default function ChatScreen({ navigation, route }: Props) {
   const salonName: string = route?.params?.name || 'Salon';
   const [conversationId, setConversationId] = useState<string>(route?.params?.conversationId || '');
   const salonId: string = route?.params?.salonId || '';
+  const [salonPhone, setSalonPhone] = useState<string>(route?.params?.phone || '');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
@@ -62,6 +65,27 @@ export default function ChatScreen({ navigation, route }: Props) {
       }
     })();
   }, [conversationId]);
+
+  useEffect(() => {
+    if (salonPhone) return;
+
+    let mounted = true;
+
+    (async () => {
+      try {
+        const salon = await getPublicSalonInfo();
+        if (mounted) {
+          setSalonPhone(salon.phone || '');
+        }
+      } catch {
+        // Ignore phone fetch failure; call button will show a friendly alert.
+      }
+    })();
+
+    return () => {
+      mounted = false;
+    };
+  }, [salonPhone]);
 
   // Poll for new messages every 4s while chat is open
   useEffect(() => {
@@ -135,6 +159,33 @@ export default function ChatScreen({ navigation, route }: Props) {
     }
   };
 
+  const handleCallSalon = useCallback(async () => {
+    const sanitizedPhone = salonPhone.replace(/[^+\d]/g, '');
+
+    if (!sanitizedPhone) {
+      Alert.alert('Phone unavailable', 'The salon owner has not added a call number yet.');
+      return;
+    }
+
+    const primaryDialerUrl = Platform.OS === 'ios'
+      ? `telprompt:${sanitizedPhone}`
+      : `tel:${sanitizedPhone}`;
+    const fallbackDialerUrl = `tel:${sanitizedPhone}`;
+
+    try {
+      await Linking.openURL(primaryDialerUrl);
+    } catch {
+      try {
+        await Linking.openURL(fallbackDialerUrl);
+      } catch {
+        Alert.alert(
+          'Calling unavailable',
+          'We could not open the phone app right now. If you are testing on a simulator or emulator, calling may not be supported there.',
+        );
+      }
+    }
+  }, [salonPhone]);
+
   return (
     <SafeAreaView style={styles.root} edges={['top']}>
       {/* Header */}
@@ -151,7 +202,7 @@ export default function ChatScreen({ navigation, route }: Props) {
             <Text style={styles.headerStatus}>🟢 Online</Text>
           </View>
         </View>
-        <TouchableOpacity style={styles.callBtn}>
+        <TouchableOpacity style={styles.callBtn} onPress={handleCallSalon}>
           <Text style={styles.callIcon}>📞</Text>
         </TouchableOpacity>
       </View>
