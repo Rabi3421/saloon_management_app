@@ -10,6 +10,7 @@ import {
   normalizeNotificationData,
   syncCurrentDevicePushToken,
 } from './pushNotifications';
+import { bookingEventEmitter } from './notificationEvents';
 
 type Props = {
   navigationReady: boolean;
@@ -31,20 +32,28 @@ export default function NotificationBootstrap({navigationReady}: Props) {
 
     const unsubscribeForegroundMessage = messaging().onMessage(async remoteMessage => {
       await displayForegroundNotification(remoteMessage);
+      // Emit booking event so open screens can refresh
+      const data = getRemoteMessageData(remoteMessage) as any;
+      if (data?.type === 'booking' || data?.bookingId) {
+        bookingEventEmitter.emit({ bookingId: data.bookingId, status: data.status, raw: data });
+      }
     });
 
     const unsubscribeOpenedApp = messaging().onNotificationOpenedApp(remoteMessage => {
-      handleNotificationNavigation(getRemoteMessageData(remoteMessage), user.role).catch(
-        () => {},
-      );
+      const data = getRemoteMessageData(remoteMessage) as any;
+      if (data?.type === 'booking' || data?.bookingId) {
+        bookingEventEmitter.emit({ bookingId: data.bookingId, status: data.status, raw: data });
+      }
+      handleNotificationNavigation(getRemoteMessageData(remoteMessage), user.role).catch(() => {});
     });
 
     const unsubscribeForegroundEvents = notifee.onForegroundEvent(({type, detail}) => {
       if (type === EventType.PRESS && detail.notification?.data) {
-        handleNotificationNavigation(
-          normalizeNotificationData(detail.notification.data),
-          user.role,
-        ).catch(() => {});
+        const d = normalizeNotificationData(detail.notification.data) as any;
+        if (d?.type === 'booking' || d?.bookingId) {
+          bookingEventEmitter.emit({ bookingId: d.bookingId, status: d.status, raw: d });
+        }
+        handleNotificationNavigation(d, user.role).catch(() => {});
       }
     });
 

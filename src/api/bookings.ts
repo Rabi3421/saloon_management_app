@@ -1,6 +1,6 @@
 import apiClient from './client';
 
-export type BookingStatus = 'pending' | 'confirmed' | 'completed' | 'cancelled';
+export type BookingStatus = 'pending' | 'confirmed' | 'started' | 'completed' | 'cancelled' | 'rescheduled';
 export type PromotionType = 'percentage' | 'flat' | 'gift_voucher' | 'free_service';
 
 interface PopulatedSalon {
@@ -114,8 +114,9 @@ export async function createBooking(payload: CreateBookingPayload): Promise<Book
 
 export async function updateBookingStatus(
   id: string,
-  status: BookingStatus,
+  payload: { status: BookingStatus; rescheduledTo?: string } | BookingStatus,
 ): Promise<Booking> {
-  const res = await apiClient.put(`/api/bookings/${id}`, { status });
+  const body = typeof payload === 'string' ? { status: payload } : payload;
+  const res = await apiClient.put(`/api/bookings/${id}`, body);
   return normalizeBooking(unwrapData(res.data));
 }

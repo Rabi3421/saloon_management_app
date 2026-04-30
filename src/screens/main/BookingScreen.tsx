@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Alert, RefreshControl } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { Colors } from '../../theme/colors';
 import { getBookings, updateBookingStatus, Booking } from '../../api/bookings';
+import DateFilterBar, { DateFilter, toBookingDateKey } from '../../components/DateFilterBar';
 
 const STATUS_COLORS: Record<string, string> = {
   pending: Colors.primary,
@@ -39,7 +41,9 @@ function getStaffName(b: Booking): string {
 }
 
 export default function BookingScreen() {
+  const navigation = useNavigation();
   const [activeTab, setActiveTab] = useState('All');
+  const [dateFilter, setDateFilter] = useState<DateFilter>('all');
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -82,16 +86,30 @@ export default function BookingScreen() {
     ]);
   };
 
-  const filtered = bookings.filter(b => {
-    if (activeTab === 'All') return true;
+  const todayKey = (() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}`; })();
+
+  const sorted = [...bookings].sort((a, b) => {
+    const da = a.bookingDate || '';
+    const db = b.bookingDate || '';
+    if (db !== da) return db.localeCompare(da);
+    return (b.timeSlot || '').localeCompare(a.timeSlot || '');
+  });
+
+  const filtered = sorted.filter(b => {
     const label = STATUS_LABELS[b.status] || b.status;
-    return label === activeTab;
+    const tabOk = activeTab === 'All' || label === activeTab;
+    const bKey = toBookingDateKey(b.bookingDate);
+    const dateOk = dateFilter === 'all' || (dateFilter === 'today' ? bKey === todayKey : bKey === dateFilter);
+    return tabOk && dateOk;
   });
 
   return (
     <SafeAreaView style={styles.root}>
       <View style={styles.header}>
         <Text style={styles.title}>My Bookings</Text>
+        <TouchableOpacity style={styles.newBtn} onPress={() => (navigation as any).navigate('Home', { screen: 'BookingFlow' })}>
+          <Text style={styles.newBtnText}>New booking</Text>
+        </TouchableOpacity>
       </View>
       <View style={styles.tabRow}>
         {tabs.map(t => (
@@ -103,6 +121,7 @@ export default function BookingScreen() {
           </TouchableOpacity>
         ))}
       </View>
+      <DateFilterBar value={dateFilter} onChange={setDateFilter} />
       {loading ? (
         <ActivityIndicator size="large" color={Colors.primary} style={{ marginTop: 40 }} />
       ) : (
@@ -173,6 +192,8 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: Colors.background },
   header: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8 },
   title: { fontSize: 20, fontWeight: '800', color: Colors.text },
+  newBtn: { position: 'absolute', right: 16, top: 16, backgroundColor: Colors.primary, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 18 },
+  newBtnText: { color: Colors.white, fontSize: 13, fontWeight: '700' },
   tabRow: { flexDirection: 'row', paddingHorizontal: 12, marginBottom: 12, gap: 6 },
   tab: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, backgroundColor: Colors.white },
   tabActive: { backgroundColor: Colors.primary },

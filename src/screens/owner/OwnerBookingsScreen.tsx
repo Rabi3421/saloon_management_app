@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { bookingEventEmitter } from '../../notifications/notificationEvents';
+import socketApi from '../../api/socket';
 import {
   View,
   Text,
@@ -14,6 +16,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { Colors } from '../../theme/colors';
 import { getBookings, updateBookingStatus, Booking, BookingStatus } from '../../api/bookings';
+import DateFilterBar, { DateFilter, toBookingDateKey } from '../../components/DateFilterBar';
 
 interface Props {
   navigation: any;
@@ -39,6 +42,7 @@ export default function OwnerBookingsScreen({ navigation }: Props) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState('all');
+  const [dateFilter, setDateFilter] = useState<DateFilter>('all');
 
   const fetchBookings = useCallback(async () => {
     try {
@@ -54,6 +58,35 @@ export default function OwnerBookingsScreen({ navigation }: Props) {
 
   useEffect(() => {
     fetchBookings();
+  }, [fetchBookings]);
+
+  useEffect(() => {
+    const unsub = bookingEventEmitter.on(() => {
+      setRefreshing(true);
+      fetchBookings().catch(() => setRefreshing(false));
+    });
+    // also connect socket and listen for realtime events
+    let sock: any = null;
+    (async () => {
+      try {
+        sock = await socketApi.connectSocket();
+        sock.on('booking:created', () => {
+          setRefreshing(true);
+          fetchBookings().catch(() => setRefreshing(false));
+        });
+        sock.on('booking:updated', () => {
+          setRefreshing(true);
+          fetchBookings().catch(() => setRefreshing(false));
+        });
+      } catch (e) {
+        // ignore
+      }
+    })();
+
+    return () => {
+      try { if (sock) { sock.off('booking:created'); sock.off('booking:updated'); } } catch (e) {}
+      unsub();
+    };
   }, [fetchBookings]);
 
   useFocusEffect(
@@ -87,7 +120,22 @@ export default function OwnerBookingsScreen({ navigation }: Props) {
     );
   };
 
-  const filtered = filter === 'all' ? bookings : bookings.filter(b => b.status === filter);
+  const todayKey = (() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}`; })();
+
+  const sorted = [...bookings].sort((a, b) => {
+    const da = a.bookingDate || '';
+    const db = b.bookingDate || '';
+    if (db !== da) return db.localeCompare(da);
+    return (b.timeSlot || '').localeCompare(a.timeSlot || '');
+  });
+
+  const filtered = sorted.filter(b => {
+    const statusOk = filter === 'all' || b.status === filter;
+    const bKey = toBookingDateKey(b.bookingDate);
+    const dateOk = dateFilter === 'all' || (dateFilter === 'today' ? bKey === todayKey : bKey === dateFilter);
+    return statusOk && dateOk;
+  });
+
   const pendingCount = bookings.filter(b => b.status === 'pending').length;
 
   const getServiceName = (b: Booking) =>
@@ -154,6 +202,8 @@ export default function OwnerBookingsScreen({ navigation }: Props) {
         })}
       </ScrollView>
       </View>
+
+      <DateFilterBar value={dateFilter} onChange={setDateFilter} />
 
       {loading ? (
         <View style={styles.loaderWrap}>
